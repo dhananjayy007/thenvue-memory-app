@@ -17,7 +17,7 @@ export function LandingFounderStory() {
           setIsVisible(true)
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.1 }
     )
 
     if (sectionRef.current) {
@@ -31,7 +31,7 @@ export function LandingFounderStory() {
     if (isVisible && displayedText.length < fullText.length) {
       const timeout = setTimeout(() => {
         setDisplayedText(fullText.slice(0, displayedText.length + 1))
-      }, 25) // Typing speed (milliseconds per character)
+      }, 15) // Typing speed (milliseconds per character)
       return () => clearTimeout(timeout)
     }
   }, [isVisible, displayedText])
@@ -45,14 +45,14 @@ export function LandingFounderStory() {
         
         <div className="landing-founder-content">
           <p className="landing-typewriter-text">
-            {displayedText}
-            {!isDoneTyping && isVisible && (
+            {displayedText || (isVisible ? '' : fullText.slice(0, 1))}
+            {!isDoneTyping && (
               <span className="landing-typewriter-pen">
                 <PenTool size={22} className="landing-pen-icon" />
               </span>
             )}
           </p>
-          <div className={`landing-founder-signature ${isDoneTyping ? 'visible' : ''}`}>
+          <div className={`landing-founder-signature ${isDoneTyping || isVisible ? 'visible' : ''}`}>
             — The Thenvue Team
           </div>
         </div>

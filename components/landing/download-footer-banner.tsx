@@ -90,7 +90,7 @@ export function LandingDownloadFooter() {
 
           <div className="landing-web-fallback">
             <Link href="/login" className="landing-web-link">
-              Prefer the web version? Open Thenvue in Browser <ArrowUpRight size={14} />
+              Open Web App <ArrowUpRight size={14} />
             </Link>
           </div>
         </div>
@@ -182,12 +182,9 @@ export function LandingDownloadFooter() {
           </a>
         </div>
 
-        <div className="landing-footer-copyright" title="Hover for a message">
-          <span className="copyright-primary">
-            © {new Date().getFullYear()} Thenvue Inc. All rights reserved.
-          </span>
-          <span className="copyright-secret">
-            © {new Date().getFullYear()} Thenvue Inc. (And no, we still aren&apos;t selling your data.)
+        <div className="landing-footer-copyright">
+          <span>
+            © {new Date().getFullYear()} Thenvue Inc. All rights reserved. (And no, we still aren&apos;t selling your data.)
           </span>
         </div>
       </div>

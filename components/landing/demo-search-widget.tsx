@@ -174,17 +174,22 @@ export function LandingDemoSearchWidget() {
 
         {/* Suggestion Chips */}
         <div className="landing-demo-chips">
-          <span className="landing-chips-label">Sample queries:</span>
-          {Object.entries(DEMO_PRESETS).map(([key, data]) => (
-            <button
-              key={key}
-              type="button"
-              className={`landing-demo-chip ${activeKey === key && !customInput ? 'active' : ''}`}
-              onClick={() => handleChipClick(key)}
-            >
-              <span>{data.query}</span>
-            </button>
-          ))}
+          <div className="landing-chips-header-row">
+            <span className="landing-chips-label">Sample queries:</span>
+            <span className="landing-chips-hint">Tap to try →</span>
+          </div>
+          <div className="landing-chips-list">
+            {Object.entries(DEMO_PRESETS).map(([key, data]) => (
+              <button
+                key={key}
+                type="button"
+                className={`landing-demo-chip ${activeKey === key && !customInput ? 'active' : ''}`}
+                onClick={() => handleChipClick(key)}
+              >
+                <span>{data.query}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* AI Synthesis Summary Card */}

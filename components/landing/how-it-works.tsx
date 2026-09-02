@@ -56,7 +56,6 @@ export function LandingHowItWorks() {
           <div key={step.number} className="landing-step-card">
             <div className="landing-step-top">
               <span className="landing-step-number">{step.number}</span>
-              <span className="landing-step-pill">Step {step.number}</span>
             </div>
 
             <h3 className="landing-step-title">{step.title}</h3>

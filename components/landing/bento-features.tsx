@@ -155,8 +155,8 @@ export function LandingBentoFeatures() {
               <span className="bento-stat-label">People Connected</span>
             </div>
             <div className="bento-stat-box">
-              <strong className="bento-stat-num">98%</strong>
-              <span className="bento-stat-label">Reflection Consistency</span>
+              <strong className="bento-stat-num">5.2</strong>
+              <span className="bento-stat-label">Avg. Entries per Week</span>
             </div>
           </div>
         </div>
@@ -186,7 +186,7 @@ export function LandingBentoFeatures() {
             </div>
             <div className="bento-privacy-item">
               <CheckCircle2 size={15} className="privacy-check" />
-              <span>AI inference is private and never used to train public models</span>
+              <span>Your entries are encrypted at rest; AI inference happens in an isolated, non-training pipeline</span>
             </div>
             <div className="bento-privacy-item">
               <CheckCircle2 size={15} className="privacy-check" />

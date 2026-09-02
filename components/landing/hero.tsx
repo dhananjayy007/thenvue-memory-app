@@ -147,7 +147,6 @@ export function LandingHero({ user }: { user?: boolean }) {
             </div>
           </Link>
 
-
           <Link href="/android" className="landing-store-badge">
             <div className="landing-icon-glow-wrap android-glow">
               <svg
@@ -168,19 +167,16 @@ export function LandingHero({ user }: { user?: boolean }) {
           </Link>
         </div>
 
-
-
-        {/* Privacy Trust Badge right below download buttons */}
-        <div className="landing-privacy-trust-badge">
-          <span>🔒 100% Private & Encrypted</span>
-        </div>
-
-        {/* Secondary Browser Link */}
-        <div className="landing-hero-secondary-link">
-          <Link href={user ? '/app' : '/login'} className="landing-text-link">
-            {user ? 'Go directly to your memories' : 'Or continue in browser'}{' '}
+        {/* Web App Action CTA in Orange Pill */}
+        <div className="landing-hero-secondary-link" style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <Link href={user ? '/app' : '/login'} className="landing-cta-pill" style={{ gap: '6px' }}>
+            <span>{user ? 'Go to Your Space' : 'Open Web App'}</span>
             <ArrowRight size={14} />
           </Link>
+
+          <div className="landing-privacy-trust-badge" style={{ marginTop: 0 }}>
+            <span>🔒 Private & Encrypted</span>
+          </div>
         </div>
       </div>
 
