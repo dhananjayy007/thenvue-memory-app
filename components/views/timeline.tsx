@@ -20,13 +20,31 @@ export function Timeline({
   onCapture?: () => void
 }) {
   const [filter, setFilter] = useState<'all' | 'photos' | 'places' | 'people'>('all')
+
   const visibleMemories = useMemo(() => {
-    if (filter === 'photos') return memories.filter((memory) => memory.media.length > 0)
-    if (filter === 'places') return memories.filter((memory) => Boolean(memory.place))
-    if (filter === 'people') return memories.filter((memory) => memory.people.length > 0)
-    return memories
+    let list = memories
+    if (filter === 'photos') list = list.filter((memory) => memory.media.length > 0)
+    if (filter === 'places') list = list.filter((memory) => Boolean(memory.place))
+    if (filter === 'people') list = list.filter((memory) => memory.people.length > 0)
+
+    // Strict reverse chronological sort by date (YYYY-MM-DD) and time
+    return [...list].sort((a, b) => {
+      const dateDiff = (b.date || '').localeCompare(a.date || '')
+      if (dateDiff !== 0) return dateDiff
+      return (b.time || '').localeCompare(a.time || '')
+    })
   }, [filter, memories])
-  const months = [...new Set(visibleMemories.map((m) => m.date.slice(0, 7)))]
+
+  // Extract unique months and sort them in strict descending order (e.g. 2026-09, 2026-08, 2025-01)
+  const months = useMemo(() => {
+    const monthSet = new Set<string>()
+    for (const m of visibleMemories) {
+      if (m.date && m.date.length >= 7) {
+        monthSet.add(m.date.slice(0, 7))
+      }
+    }
+    return Array.from(monthSet).sort((a, b) => b.localeCompare(a))
+  }, [visibleMemories])
 
   return (
     <div className="page">

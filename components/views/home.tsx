@@ -34,11 +34,17 @@ export function Home({
   const todayISO = getTodayDateString()
   const monthDay = todayISO.slice(5)
 
-  const today = memories.filter((m) => m.date === todayISO)
-  const recent = memories.slice(0, 6)
+  const sortedMemories = [...memories].sort((a, b) => {
+    const dateDiff = (b.date || '').localeCompare(a.date || '')
+    if (dateDiff !== 0) return dateDiff
+    return (b.time || '').localeCompare(a.time || '')
+  })
+
+  const today = sortedMemories.filter((m) => m.date === todayISO)
+  const recent = sortedMemories.slice(0, 6)
 
   // Find Rediscover memories (historical: year < currentYear)
-  const historicalMemories = memories.filter((m) => parseInt(m.date.slice(0, 4), 10) < currentYear)
+  const historicalMemories = sortedMemories.filter((m) => parseInt(m.date.slice(0, 4), 10) < currentYear)
 
   // 1. Exact match On This Day
   const exactMatches = historicalMemories.filter((m) => m.date.slice(5) === monthDay)
