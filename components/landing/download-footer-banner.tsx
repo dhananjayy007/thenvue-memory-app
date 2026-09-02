@@ -40,9 +40,8 @@ export function LandingDownloadFooter() {
           </p>
 
           <div className="landing-download-buttons">
-            <a
-              href="/downloads/Thenvue.ipa"
-              download
+            <Link
+              href="/ios"
               className="landing-store-badge"
             >
               <div className="landing-icon-glow-wrap apple-glow">
@@ -62,12 +61,11 @@ export function LandingDownloadFooter() {
                   <span className="landing-store-main-title">Download for iOS</span>
                 </div>
               </div>
-            </a>
+            </Link>
 
 
-            <a
-              href="/downloads/Thenvue.apk"
-              download
+            <Link
+              href="/android"
               className="landing-store-badge"
             >
               <div className="landing-icon-glow-wrap android-glow">
@@ -86,7 +84,7 @@ export function LandingDownloadFooter() {
                   <span className="landing-store-main-title">Download for Android</span>
                 </div>
               </div>
-            </a>
+            </Link>
           </div>
 
 

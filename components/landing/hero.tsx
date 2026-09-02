@@ -127,7 +127,7 @@ export function LandingHero({ user }: { user?: boolean }) {
 
         {/* Direct Download Action CTAs */}
         <div className="landing-hero-cta-group">
-          <a href="/downloads/Thenvue.ipa" download className="landing-store-badge">
+          <Link href="/ios" className="landing-store-badge">
             <div className="landing-icon-glow-wrap apple-glow">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -145,10 +145,10 @@ export function LandingHero({ user }: { user?: boolean }) {
                 <span className="landing-store-main-title">Download for iOS</span>
               </div>
             </div>
-          </a>
+          </Link>
 
 
-          <a href="/downloads/Thenvue.apk" download className="landing-store-badge">
+          <Link href="/android" className="landing-store-badge">
             <div className="landing-icon-glow-wrap android-glow">
               <svg
                 className="landing-store-icon"
@@ -165,7 +165,7 @@ export function LandingHero({ user }: { user?: boolean }) {
                 <span className="landing-store-main-title">Download for Android</span>
               </div>
             </div>
-          </a>
+          </Link>
         </div>
 
 
