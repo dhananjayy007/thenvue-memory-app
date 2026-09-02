@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+.expo/
+dist/
+
+# Build outputs
+*.tsbuildinfo
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

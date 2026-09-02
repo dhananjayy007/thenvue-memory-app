@@ -1,0 +1,46 @@
+export const darkColors = {
+  background: '#1d201e',
+  card: '#252925',
+  cardSecondary: '#30352f',
+  border: '#3a4039',
+  borderActive: '#4d554c',
+  text: '#eeeee8',
+  textSecondary: '#c8cdc4',
+  textMuted: '#969c92',
+  accent: '#d88a6a',
+  accentDark: '#c7765b',
+  accentLight: 'rgba(216, 138, 106, 0.15)',
+  danger: '#c0453a',
+  dangerLight: 'rgba(192, 69, 58, 0.15)',
+  success: '#43815a',
+  pill: '#30352f',
+  inputBg: '#363c35',
+  navBg: '#252925',
+  tabActive: '#d88a6a',
+  tabInactive: '#969c92',
+}
+
+export const lightColors = {
+  background: '#f5f4f0',
+  card: '#fbfaf7',
+  cardSecondary: '#e9e8e2',
+  border: '#deded7',
+  borderActive: '#c5c5bd',
+  text: '#272827',
+  textSecondary: '#5a5c57',
+  textMuted: '#85877f',
+  accent: '#c7765b',
+  accentDark: '#b2654b',
+  accentLight: 'rgba(199, 118, 91, 0.15)',
+  danger: '#c0453a',
+  dangerLight: 'rgba(192, 69, 58, 0.15)',
+  success: '#43815a',
+  pill: '#e9e8e2',
+  inputBg: '#e5e4de',
+  navBg: '#fbfaf7',
+  tabActive: '#c7765b',
+  tabInactive: '#85877f',
+}
+
+export type ThemeColors = typeof darkColors
+

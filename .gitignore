@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.expo/
+**/.expo/
+dist/
+**/dist/
+
+# Build outputs
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Scratch test files & secrets
+scratch/
+**/scratch/
+
+# Environment variables
+.env*.local
+.env.local
+.env
+
+# v0 sandbox internal files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.v0-trash/
+.vercel/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
