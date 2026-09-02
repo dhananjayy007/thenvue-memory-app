@@ -1,6 +1,6 @@
 'use client'
 
-import { Camera, PenLine } from 'lucide-react'
+import { Camera, PenLine, Mic, Volume2 } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { fmt, isSameCalendarDay } from '@/lib/format'
 import { renderWithMentions } from '@/lib/mentions'
@@ -16,6 +16,9 @@ export function MemoryCard({
 }) {
   const isToday = isSameCalendarDay(memory.date)
 
+  const photo = memory.media.find((m) => m.mediaType === 'image' || m.mediaType === 'document')
+  const hasAudio = memory.media.some((m) => m.mediaType === 'audio')
+
   return (
     <div className="memory-card-wrapper">
       <div
@@ -30,8 +33,22 @@ export function MemoryCard({
           }
         }}
       >
-        {memory.media[0] ? (
-          <img src={memory.media[0].url} alt={memory.media[0].fileName} />
+        {photo ? (
+          <img src={photo.url} alt={photo.fileName || memory.title} />
+        ) : hasAudio ? (
+          <div className="card-placeholder card-audio-placeholder">
+            <div className="card-audio-visual">
+              <Mic size={18} className="card-audio-mic" />
+              <div className="card-audio-waves">
+                <span className="wave-bar" />
+                <span className="wave-bar" />
+                <span className="wave-bar" />
+                <span className="wave-bar" />
+                <span className="wave-bar" />
+              </div>
+            </div>
+            <span className="card-audio-tag">Voice Note</span>
+          </div>
         ) : (
           <div className="card-placeholder">
             <PenLine size={16} />

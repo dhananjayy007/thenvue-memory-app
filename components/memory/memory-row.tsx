@@ -16,6 +16,8 @@ export function MemoryRow({
 }) {
   const isToday = isSameCalendarDay(memory.date)
 
+  const photo = memory.media.find((m) => m.mediaType === 'image' || m.mediaType === 'document')
+
   return (
     <div className="memory-row-wrapper">
       <div
@@ -37,7 +39,7 @@ export function MemoryRow({
             <MapPin size={12} /> {memory.place} <i /> {memory.topics[0] ?? 'Uncategorized'}
           </small>
         </span>
-        {memory.media[0] && <img src={memory.media[0].url} alt={memory.media[0].fileName} />}
+        {photo && <img src={photo.url} alt={photo.fileName} />}
         {onAddPhoto && (
           <button
             type="button"
