@@ -47,11 +47,17 @@ export function MemoryCard({
                 <span className="wave-bar" />
               </div>
             </div>
-            <span className="card-audio-tag">Voice Note</span>
           </div>
         ) : (
-          <div className="card-placeholder">
-            <PenLine size={16} />
+          <div className="card-placeholder card-text-placeholder">
+            <div className="card-text-visual">
+              <PenLine size={18} className="card-text-pen" />
+              <div className="card-text-lines">
+                <span className="text-line-bar" />
+                <span className="text-line-bar" />
+                <span className="text-line-bar" />
+              </div>
+            </div>
           </div>
         )}
         <div className="card-copy">
