@@ -248,6 +248,20 @@ export function Detail({
                     </button>
                   )}
 
+                  {onAddPerspective && (
+                    <button
+                      type="button"
+                      className="detail-menu-item"
+                      onClick={() => {
+                        setShowMenu(false)
+                        onAddPerspective(memory)
+                      }}
+                    >
+                      <Plus size={15} />
+                      <span>Add Perspective</span>
+                    </button>
+                  )}
+
                   {isOwner && (
                     <>
                       <div className="detail-menu-divider" />
@@ -475,10 +489,9 @@ export function Detail({
                   {fmt(memory.date)} · {memory.time}
                 </p>
                 <h1>{memory.title}</h1>
-                {memory.summary && <p className="subhead">{memory.summary}</p>}
-                <p className="original-label">
-                  {audioMedia.length > 0 ? 'Transcription' : 'Original writing'}
-                </p>
+                {audioMedia.length > 0 && (
+                  <p className="original-label">Transcription</p>
+                )}
                 <p className="detail-text">{renderWithMentions(memory.text)}</p>
 
                 <div className="metadata">
@@ -502,44 +515,30 @@ export function Detail({
             )}
 
             {/* ---------------------------------------------------- */}
-            {/* PERSPECTIVES SECTION */}
+            {/* PERSPECTIVES SECTION (Compact with Collab Icon) */}
             {/* ---------------------------------------------------- */}
             <div className="detail-perspectives-section">
               <div className="perspectives-header">
                 <div>
-                  <h2>Perspectives {perspectives.length > 0 && `(${perspectives.length})`}</h2>
+                  <h3 className="perspectives-title">
+                    Perspectives {perspectives.length > 0 && `(${perspectives.length})`}
+                  </h3>
                   <p className="perspectives-sub">One moment. Multiple perspectives.</p>
                 </div>
-                {onAddPerspective && (
+                {onInvitePeople && (
                   <button
                     type="button"
-                    className="add-perspective-btn"
-                    onClick={() => onAddPerspective(memory)}
+                    className="perspectives-collab-btn"
+                    onClick={() => onInvitePeople(memory)}
+                    title="Share memory"
+                    aria-label="Share memory"
                   >
-                    <Plus size={15} />
-                    <span>Add My Perspective</span>
+                    <UserPlus size={16} />
                   </button>
                 )}
               </div>
 
-              {perspectives.length === 0 ? (
-                <div className="perspectives-empty-box">
-                  <Sparkles size={20} className="perspectives-empty-icon" />
-                  <p>No other perspectives added yet.</p>
-                  <small>
-                    Invite friends who experienced this moment to add their memories, voice notes, and photos.
-                  </small>
-                  {isOwner && onInvitePeople && (
-                    <button
-                      type="button"
-                      className="invite-perspectives-cta"
-                      onClick={() => onInvitePeople(memory)}
-                    >
-                      <UserPlus size={14} /> Share with people
-                    </button>
-                  )}
-                </div>
-              ) : (
+              {perspectives.length > 0 && (
                 <div className="perspectives-cards-list">
                   {perspectives.map((perspective) => (
                     <PerspectiveCard
