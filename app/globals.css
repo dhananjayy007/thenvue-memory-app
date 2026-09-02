@@ -3531,6 +3531,596 @@ button { color: inherit; cursor: pointer; }
   padding: 5px 12px;
 }
 
+/* ==========================================================================
+   @Mention Autocomplete & Highlighting
+   ========================================================================== */
+
+.mention-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  width: 260px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  margin-top: 6px;
+  padding: 4px;
+  animation: mentionFadeIn 0.15s ease-out;
+}
+
+@keyframes mentionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mention-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+  font-size: 13px;
+}
+
+.mention-item:hover,
+.mention-item.active {
+  background: rgba(229, 115, 115, 0.12);
+  color: var(--foreground);
+}
+
+.mention-item.loading,
+.mention-item.empty {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  cursor: default;
+  padding: 10px;
+  text-align: center;
+}
+
+.mention-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d97706, #e57373);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mention-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.mention-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-email {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Styled mention badge inside memory text & detail views */
+.mention-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(229, 115, 115, 0.07);
+  color: #d4957d;
+  border: 1px solid rgba(229, 115, 115, 0.15);
+  padding: 0 5px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 0.95em;
+  margin: 0 2px;
+  transition: all 0.15s ease;
+  vertical-align: baseline;
+}
+
+.mention-pill:hover {
+  background: rgba(229, 115, 115, 0.12);
+  border-color: rgba(229, 115, 115, 0.25);
+  color: #e5a48d;
+}
+
+/* ==========================================================================
+   Shareable Invite Link Card & WhatsApp Share
+   ========================================================================== */
+
+.invite-link-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.invite-link-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.invite-link-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.invite-link-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px 4px 2px 10px;
+}
+
+.invite-link-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+  outline: none;
+  font-family: monospace;
+}
+
+.invite-copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.invite-copy-btn:hover {
+  background: var(--accent-hover);
+}
+
+.invite-copy-btn.copied {
+  background: #10b981;
+}
+
+.invite-share-native-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(229, 115, 115, 0.25);
+  background: rgba(229, 115, 115, 0.1);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  height: 100%;
+}
+
+.invite-share-native-btn:hover {
+  background: rgba(229, 115, 115, 0.2);
+  border-color: rgba(229, 115, 115, 0.4);
+  transform: translateY(-1px);
+}
+
+.invite-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 12px 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.invite-divider::before,
+.invite-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.invite-divider span {
+  padding: 0 10px;
+}
+
+/* ==========================================================================
+   Public Shared Memory Landing Page (/share/[id])
+   ========================================================================== */
+
+.share-page-root {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  display: flex;
+  flex-direction: column;
+}
+
+.share-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.share-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.share-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.share-signin-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  padding: 6px 12px;
+  transition: color 0.15s ease;
+}
+
+.share-signin-btn:hover {
+  color: var(--foreground);
+}
+
+.share-hero-btn {
+  font-size: 13px !important;
+  padding: 6px 16px !important;
+}
+
+.share-container {
+  flex: 1;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.share-inviter-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(229, 115, 115, 0.08);
+  border: 1px solid rgba(229, 115, 115, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.share-inviter-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d97706, #e57373);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.share-inviter-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--foreground);
+}
+
+.share-inviter-text strong {
+  color: var(--accent);
+}
+
+.share-collab-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(229, 115, 115, 0.12);
+  color: var(--accent);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.share-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.share-photos-grid {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  background: #000;
+  padding: 8px;
+}
+
+.share-photo-item {
+  height: 280px;
+  width: auto;
+  max-width: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.share-photo-item.single {
+  width: 100%;
+  height: auto;
+  max-height: 440px;
+}
+
+.share-card-content {
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.share-meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.share-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.share-title {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.share-summary {
+  font-size: 15px;
+  color: var(--accent);
+  font-style: italic;
+  margin: 0;
+}
+
+.share-body {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--foreground);
+  white-space: pre-wrap;
+}
+
+.share-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.share-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.share-perspective-cta {
+  background: rgba(229, 115, 115, 0.05);
+  border-top: 1px solid var(--border);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.share-cta-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.share-cta-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(229, 115, 115, 0.15);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.share-cta-header h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.share-cta-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+.share-action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.share-add-perspective-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px !important;
+  font-size: 14px !important;
+  text-decoration: none;
+}
+
+.share-value-prop {
+  text-align: center;
+  margin-top: 20px;
+  padding: 32px 0;
+}
+
+.share-value-prop h2 {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 400;
+  margin: 0 0 8px;
+}
+
+.share-prop-subtitle {
+  font-size: 14px;
+  color: var(--muted-foreground);
+  max-width: 500px;
+  margin: 0 auto 24px;
+  line-height: 1.5;
+}
+
+.share-bento-mini {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+  text-align: left;
+}
+
+.share-bento-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.bento-card-icon {
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.share-bento-card h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.share-bento-card p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+.share-download-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.share-footer {
+  border-top: 1px solid var(--border);
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+
+
 
 
 

@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { currentCaptureTime, MAX_MEDIA_BYTES, MAX_MEDIA_PER_MEMORY } from '@/lib/memories'
 import type { MemoryCaptureTime, NewMediaInput } from '@/types/memory'
 import { optimizePdf } from '@/lib/pdf-optimizer'
+import { MentionAutocomplete } from '@/components/memory/mention-autocomplete'
 
 const MAX_SOURCE_BYTES = 12 * 1024 * 1024
 const MAX_SOURCE_PIXELS = 32_000_000
@@ -50,6 +51,7 @@ export function Capture({
   const [dontShowPdfWarning, setDontShowPdfWarning] = useState(false)
 
   const photosRef = useRef<PendingPhoto[]>([])
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false)
@@ -423,12 +425,18 @@ export function Capture({
             {micError && <p className="auth-error" style={{ margin: '8px 0 0' }}>{micError}</p>}
           </div>
         ) : (
-          <>
+          <div style={{ position: 'relative', width: '100%' }}>
             <textarea
+              ref={textareaRef}
               autoFocus
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="What happened?"
+              placeholder="What happened? (Type @ to tag a friend)"
+            />
+            <MentionAutocomplete
+              textareaRef={textareaRef}
+              value={draft}
+              onChange={setDraft}
             />
             {photos.length > 0 && (
               <div className="capture-photo-strip">
@@ -454,7 +462,7 @@ export function Capture({
                 ))}
               </div>
             )}
-          </>
+          </div>
         )}
 
         {photoError && <p className="auth-error">{photoError}</p>}

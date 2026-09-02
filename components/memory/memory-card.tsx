@@ -3,6 +3,7 @@
 import { Camera, PenLine } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { fmt, isSameCalendarDay } from '@/lib/format'
+import { renderWithMentions } from '@/lib/mentions'
 
 export function MemoryCard({
   memory,
@@ -39,7 +40,7 @@ export function MemoryCard({
         <div className="card-copy">
           <div className="card-copy-header">
             <span>{fmt(memory.date)}</span>
-            {isToday && onAddPhoto && (
+            {onAddPhoto && (
               <button
                 type="button"
                 className="card-camera-btn"
@@ -54,7 +55,7 @@ export function MemoryCard({
               </button>
             )}
           </div>
-          <strong>{memory.title}</strong>
+          <strong>{renderWithMentions(memory.title)}</strong>
           <small>
             {memory.place} · {memory.topics[0] ?? 'Uncategorized'}
           </small>

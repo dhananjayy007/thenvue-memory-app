@@ -3,6 +3,7 @@
 import { Camera, ChevronRight, MapPin } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { isSameCalendarDay } from '@/lib/format'
+import { renderWithMentions } from '@/lib/mentions'
 
 export function MemoryRow({
   memory,
@@ -31,13 +32,13 @@ export function MemoryRow({
       >
         <span className="row-time">{memory.time}</span>
         <span className="row-content">
-          <strong>{memory.text}</strong>
+          <strong>{renderWithMentions(memory.text)}</strong>
           <small>
             <MapPin size={12} /> {memory.place} <i /> {memory.topics[0] ?? 'Uncategorized'}
           </small>
         </span>
         {memory.media[0] && <img src={memory.media[0].url} alt={memory.media[0].fileName} />}
-        {isToday && onAddPhoto && (
+        {onAddPhoto && (
           <button
             type="button"
             className="row-camera-btn"

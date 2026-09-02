@@ -27,14 +27,17 @@ export function NotificationCenter({
   const [loading, setLoading] = useState(false)
 
   const fetchNotifications = async () => {
+    if (typeof document !== 'undefined' && document.hidden) return
     try {
       setLoading(true)
       const list = await getNotificationsAction()
-      setNotifications(list)
-      const unreadCount = list.filter((n) => n.status === 'unread').length
-      onUnreadCountChange?.(unreadCount)
-    } catch (err) {
-      console.error('Failed to load notifications:', err)
+      if (Array.isArray(list)) {
+        setNotifications(list)
+        const unreadCount = list.filter((n) => n.status === 'unread').length
+        onUnreadCountChange?.(unreadCount)
+      }
+    } catch {
+      // Silently ignore temporary network drops / dev server restarts
     } finally {
       setLoading(false)
     }
@@ -42,7 +45,7 @@ export function NotificationCenter({
 
   useEffect(() => {
     fetchNotifications()
-    // Poll notifications every 30 seconds
+    // Poll notifications every 30 seconds when window is active
     const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
   }, [])

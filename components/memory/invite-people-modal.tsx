@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, UserCheck, UserPlus, Users, X } from 'lucide-react'
+import { Search, UserCheck, UserPlus, Users, X, Link as LinkIcon, Check, MessageCircle, Share2 } from 'lucide-react'
 import { searchUsersAction, inviteParticipantsAction } from '@/app/memories/actions'
 import type { Memory, MemoryParticipant, UserSearchResult } from '@/types/memory'
 
@@ -21,8 +21,53 @@ export function InvitePeopleModal({
   const [selectedUsers, setSelectedUsers] = useState<UserSearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [sending, setSending] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const shareUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/share/${memory.id}`
+    : `https://thenvue.com/share/${memory.id}`
+
+  const copyToClipboard = async () => {
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl)
+      } else {
+        const input = document.createElement('input')
+        input.value = shareUrl
+        document.body.appendChild(input)
+        input.select()
+        document.execCommand('copy')
+        document.body.removeChild(input)
+      }
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2500)
+    } catch (err) {
+      console.error('Failed to copy link:', err)
+    }
+  }
+
+  const handleShare = async () => {
+    // Check if Web Share API is available (Native share sheet on iOS/Android mobile browsers)
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${memory.title} — Thenvue`,
+          text: `Hey! I captured our memory "${memory.title}" on Thenvue. Check it out and add your perspective:`,
+          url: shareUrl,
+        })
+        return
+      } catch (err: any) {
+        // If user cancelled the share dialog, do nothing
+        if (err.name === 'AbortError') return
+        // Otherwise fallback to copying to clipboard
+      }
+    }
+
+    // Fallback on desktop/web: copy link to clipboard
+    await copyToClipboard()
+  }
 
   // Reset states when opened
   useEffect(() => {
@@ -110,6 +155,53 @@ export function InvitePeopleModal({
           </button>
         </header>
 
+        {/* Shareable Link Box */}
+        <div className="invite-link-card">
+          <div className="invite-link-info">
+            <div className="invite-link-label">
+              <LinkIcon size={13} />
+              <span>Shareable Invite Link</span>
+            </div>
+            <div className="invite-link-input-row">
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                className="invite-link-input"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                type="button"
+                className={`invite-copy-btn ${copiedLink ? 'copied' : ''}`}
+                onClick={copyToClipboard}
+              >
+                {copiedLink ? (
+                  <>
+                    <Check size={14} /> Copied
+                  </>
+                ) : (
+                  <>
+                    <LinkIcon size={14} /> Copy
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="invite-share-native-btn"
+            onClick={handleShare}
+            title="Share with apps"
+          >
+            <Share2 size={16} />
+            <span>Share</span>
+          </button>
+        </div>
+
+        <div className="invite-divider">
+          <span>or invite by name / email</span>
+        </div>
+
         <div className="invite-search-box">
           <Search size={16} className="invite-search-icon" />
           <input
@@ -148,6 +240,11 @@ export function InvitePeopleModal({
         )}
 
         {/* User Search Results */}
+        {!query && results.length > 0 && (
+          <div className="invite-section-header" style={{ padding: '0 4px 6px', fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Recent & Tagged Connections
+          </div>
+        )}
         <div className="invite-user-list">
           {searching ? (
             <div className="invite-empty">Searching users...</div>
@@ -191,7 +288,7 @@ export function InvitePeopleModal({
             })
           ) : (
             <div className="invite-empty">
-              {query ? 'No people found with that name.' : 'No other users found.'}
+              {query ? 'No people found with that name.' : 'Search by name or email to invite someone.'}
             </div>
           )}
         </div>

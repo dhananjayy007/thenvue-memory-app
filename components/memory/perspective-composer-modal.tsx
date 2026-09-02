@@ -8,6 +8,7 @@ import { MAX_MEDIA_BYTES, MAX_MEDIA_PER_MEMORY } from '@/lib/memories'
 import type { Memory, MemoryPerspective, NewMediaInput } from '@/types/memory'
 import { optimizePdf } from '@/lib/pdf-optimizer'
 import { addPerspectiveAction } from '@/app/memories/actions'
+import { MentionAutocomplete } from '@/components/memory/mention-autocomplete'
 
 const MAX_SOURCE_PIXELS = 32_000_000
 const MAX_IMAGE_DIMENSION = 2048
@@ -45,6 +46,7 @@ export function PerspectiveComposerModal({
   const [transcribedDraft, setTranscribedDraft] = useState<string | null>(null)
 
   const photosRef = useRef<PendingPhoto[]>([])
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false)
@@ -508,12 +510,18 @@ export function PerspectiveComposerModal({
                 {micError && <p className="auth-error" style={{ margin: '8px 0 0' }}>{micError}</p>}
               </div>
             ) : (
-              <>
+              <div style={{ position: 'relative', width: '100%' }}>
                 <textarea
+                  ref={textareaRef}
                   autoFocus
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  placeholder="What is your side of the story? What do you remember?"
+                  placeholder="What is your side of the story? What do you remember? (Type @ to tag a friend)"
+                />
+                <MentionAutocomplete
+                  textareaRef={textareaRef}
+                  value={draft}
+                  onChange={setDraft}
                 />
 
                 {photos.length > 0 && (
@@ -539,7 +547,7 @@ export function PerspectiveComposerModal({
                     ))}
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {error && <p className="auth-error">{error}</p>}

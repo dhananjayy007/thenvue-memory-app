@@ -15,6 +15,7 @@ import {
   Plus,
   Sparkles,
   Share2,
+  Camera,
 } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 import type { Memory, MemoryPerspective } from '@/types/memory'
@@ -23,6 +24,7 @@ import {
   getConnectedMemoriesAction,
   getMemoryDetailsAction,
 } from '@/app/memories/actions'
+import { renderWithMentions } from '@/lib/mentions'
 import type { ConnectedMemory } from '@/lib/ai/connected-memories'
 import { fmt } from '@/lib/format'
 
@@ -35,6 +37,7 @@ export function Detail({
   onDeleteMedia,
   onInvitePeople,
   onAddPerspective,
+  onAddPhoto,
 }: {
   memory: Memory
   memories: Memory[]
@@ -44,6 +47,7 @@ export function Detail({
   onDeleteMedia: (mediaId: string) => void
   onInvitePeople?: (memory: Memory) => void
   onAddPerspective?: (memory: Memory) => void
+  onAddPhoto?: (memory: Memory) => void
 }) {
   const [memory, setMemory] = useState<Memory>(initialMemory)
   const [connected, setConnected] = useState<ConnectedMemory[] | null>(null)
@@ -121,6 +125,17 @@ export function Detail({
             </button>
             <span>Memory</span>
             <div className="detail-header-actions">
+              {isOwner && onAddPhoto && (
+                <button
+                  type="button"
+                  className="detail-header-btn"
+                  onClick={() => onAddPhoto(memory)}
+                  title="Add photo to this memory"
+                >
+                  <Camera size={16} />
+                  <span>Add Photo</span>
+                </button>
+              )}
               {isOwner && onInvitePeople && (
                 <button
                   type="button"
@@ -128,7 +143,7 @@ export function Detail({
                   onClick={() => onInvitePeople(memory)}
                   title="Share with people"
                 >
-                  <UserPlus size={17} />
+                  <UserPlus size={16} />
                   <span>Share</span>
                 </button>
               )}
@@ -247,7 +262,7 @@ export function Detail({
             <p className="original-label">
               {audioMedia.length > 0 ? 'Transcription' : 'Original writing'}
             </p>
-            <p className="detail-text">{memory.text}</p>
+            <p className="detail-text">{renderWithMentions(memory.text)}</p>
 
             <div className="metadata">
               {memory.place && (
@@ -617,7 +632,7 @@ function PerspectiveCard({
       )}
 
       {/* Story Content */}
-      <p className="perspective-card-text">{perspective.text}</p>
+      <p className="perspective-card-text">{renderWithMentions(perspective.text)}</p>
 
       {/* Metadata tags */}
       {((perspective.people && perspective.people.length > 0) ||

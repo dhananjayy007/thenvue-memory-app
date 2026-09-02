@@ -87,9 +87,18 @@ export async function fetchMemories(): Promise<Memory[]> {
   if (error) throw error
   if (!rawMemories) return []
 
+  // Deduplicate: Filter out secondary cloned copies if the parent shared memory is present
+  const parentIds = new Set((rawMemories || []).map((r: any) => r.id))
+  const filteredRawMemories = (rawMemories || []).filter((r: any) => {
+    if (r.source_memory_id && parentIds.has(r.source_memory_id)) {
+      return false
+    }
+    return true
+  })
+
   const formatted: Memory[] = []
 
-  for (const m of rawMemories) {
+  for (const m of filteredRawMemories) {
     const rawMedia = (m.media as any[]) || []
     const mediaAssets: MediaAsset[] = []
 

@@ -19,6 +19,7 @@ import { embedMemorySafe } from '@/lib/ai/embed-memory'
 import { searchSemanticMemories, type SemanticMemoryResult } from '@/lib/ai/search-memories'
 import { findConnectedMemories, type ConnectedMemory } from '@/lib/ai/connected-memories'
 import { answerQuestion, type AskMyLifeResult, type ConversationTurn } from '@/lib/ai/answer-question'
+import { extractMentions } from '@/lib/mentions'
 import { createHash } from 'crypto'
 import type {
   Memory,
@@ -69,7 +70,17 @@ export async function getMemories(): Promise<Memory[]> {
     rawData = data
   }
 
-  return rowsToMemories(supabase, (rawData || []) as MemoryRow[], user.id)
+  // Deduplicate: If the shared parent memory is already present in rawData,
+  // filter out the secondary cloned personal copy so it is never displayed twice.
+  const parentMemoryIds = new Set((rawData || []).map((r: any) => r.id))
+  const filteredRows = (rawData || []).filter((r: any) => {
+    if (r.source_memory_id && parentMemoryIds.has(r.source_memory_id)) {
+      return false
+    }
+    return true
+  })
+
+  return rowsToMemories(supabase, filteredRows as MemoryRow[], user.id)
 }
 
 export async function searchMemoriesAction(query: string, limit = 10): Promise<SemanticMemoryResult[]> {
@@ -166,11 +177,15 @@ export async function createMemory(
   const tags = await tagMemory(body)
   const place = tags.places[0] || 'Home'
 
+  // Extract @mentions from text and merge with AI-detected people
+  const mentionedPeople = extractMentions(body)
+  const allPeople = [...new Set([...(tags.people || []), ...mentionedPeople])]
+
   // Generate vector embedding safely server-side (does not throw or break saving on failure)
   const embedding = await embedMemorySafe({
     text: body,
     summary: tags.summary,
-    people: tags.people,
+    people: allPeople,
     place,
     topics: tags.topics,
     memoryType: tags.memoryType,
@@ -187,7 +202,7 @@ export async function createMemory(
       occurred_on: captureTime.date,
       occurred_time: captureTime.time,
       place,
-      people: tags.people,
+      people: allPeople,
       topics: tags.topics,
       summary: tags.summary,
       memory_type: tags.memoryType,
@@ -198,6 +213,25 @@ export async function createMemory(
     .single()
 
   if (memoryError) throw new Error(memoryError.message)
+
+  // Auto-invite any @mentioned users who are registered on Thenvue
+  if (mentionedPeople.length > 0) {
+    try {
+      for (const mentionName of mentionedPeople) {
+        const matchingUsers = await searchUsersAction(mentionName)
+        const exactMatch = matchingUsers.find(
+          (u) =>
+            u.displayName.toLowerCase() === mentionName.toLowerCase() ||
+            u.email.toLowerCase().startsWith(mentionName.toLowerCase())
+        )
+        if (exactMatch && exactMatch.id !== user.id) {
+          await inviteParticipantsAction(createdMemory.id, [exactMatch.id]).catch(() => {})
+        }
+      }
+    } catch {
+      // Non-blocking auto-invite
+    }
+  }
 
   let createdMedia: MediaRow[] = []
   if (media.length > 0) {
@@ -575,9 +609,78 @@ export async function searchUsersAction(searchQuery: string): Promise<UserSearch
   } = await supabase.auth.getUser()
   if (!user) return []
 
-  const query = searchQuery.trim()
+  const query = (searchQuery || '').trim()
 
-  // Try calling the RPC function first
+  // 1. If NO search query is typed, only return users the current user previously tagged or interacted with
+  if (!query) {
+    try {
+      // Find co-participants from shared memories
+      const { data: participantRows } = await supabase
+        .from('memory_participants')
+        .select('user_id, invited_by')
+        .or(`user_id.eq.${user.id},invited_by.eq.${user.id}`)
+        .limit(30)
+
+      const relatedUserIds = new Set<string>()
+      for (const row of participantRows || []) {
+        if (row.user_id && row.user_id !== user.id) relatedUserIds.add(row.user_id)
+        if (row.invited_by && row.invited_by !== user.id) relatedUserIds.add(row.invited_by)
+      }
+
+      // Also find names from 'people' tags in user's memories
+      const { data: memPeople } = await supabase
+        .from('memories')
+        .select('people')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .limit(50)
+
+      const taggedNames = new Set<string>()
+      for (const m of memPeople || []) {
+        if (Array.isArray(m.people)) {
+          for (const p of m.people) {
+            if (p && typeof p === 'string' && p.trim()) {
+              taggedNames.add(p.trim().toLowerCase())
+            }
+          }
+        }
+      }
+
+      // If no past connections, return empty list (don't dump random app users)
+      if (relatedUserIds.size === 0 && taggedNames.size === 0) {
+        return []
+      }
+
+      // Call search function or query profiles for these specific connections
+      const { data: rpcData } = await supabase.rpc('search_users_to_invite', {
+        search_query: '',
+      })
+
+      if (Array.isArray(rpcData)) {
+        const filtered = rpcData.filter((r: any) => {
+          const isRelatedId = relatedUserIds.has(r.id)
+          const nameLower = (r.display_name || '').toLowerCase()
+          const emailPrefix = (r.email || '').split('@')[0].toLowerCase()
+          const isTagged = taggedNames.has(nameLower) || taggedNames.has(emailPrefix)
+          return isRelatedId || isTagged
+        })
+
+        if (filtered.length > 0) {
+          return filtered.map((r: any) => ({
+            id: r.id,
+            displayName: r.display_name?.trim() || r.email?.split('@')[0] || 'Thenvue User',
+            email: r.email || '',
+          }))
+        }
+      }
+    } catch {
+      // Fallback
+    }
+
+    return []
+  }
+
+  // 2. When the user types a search query, search the entire user base for matching names or emails
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('search_users_to_invite', {
       search_query: query,
@@ -593,24 +696,30 @@ export async function searchUsersAction(searchQuery: string): Promise<UserSearch
     // Fallback below
   }
 
-  // Fallback to querying profiles
-  let queryBuilder = supabase
-    .from('profiles')
-    .select('id, display_name')
-    .neq('id', user.id)
+  // 3. Fallback to querying public.profiles table directly
+  try {
+    let queryBuilder = supabase
+      .from('profiles')
+      .select('id, display_name')
+      .neq('id', user.id)
 
-  if (query) {
-    queryBuilder = queryBuilder.ilike('display_name', `%${query}%`)
+    if (query) {
+      queryBuilder = queryBuilder.ilike('display_name', `%${query}%`)
+    }
+
+    const { data: profiles, error: profileErr } = await queryBuilder.limit(15)
+    if (!profileErr && profiles && profiles.length > 0) {
+      return profiles.map((p) => ({
+        id: p.id,
+        displayName: p.display_name?.trim() || 'Thenvue User',
+        email: '',
+      }))
+    }
+  } catch {
+    // Return empty list
   }
 
-  const { data: profiles, error: profileErr } = await queryBuilder.limit(10)
-  if (profileErr || !profiles) return []
-
-  return profiles.map((p) => ({
-    id: p.id,
-    displayName: p.display_name?.trim() || 'Thenvue User',
-    email: '',
-  }))
+  return []
 }
 
 export async function inviteParticipantsAction(
@@ -1896,6 +2005,88 @@ export async function getRediscoveredMemoriesAction(): Promise<Memory[]> {
 
   if (!memoriesData) return []
   return rowsToMemories(supabase, memoriesData as MemoryRow[], user.id)
+}
+
+export interface PublicSharedMemory {
+  id: string
+  title: string
+  body: string
+  date: string
+  time: string
+  place: string
+  people: string[]
+  topics: string[]
+  summary?: string
+  authorName: string
+  photos: string[]
+  perspectivesCount: number
+}
+
+export async function getSharedMemoryPublicAction(memoryId: string): Promise<PublicSharedMemory | null> {
+  const supabase = await createClient()
+
+  // 1. Fetch memory record
+  const { data: mem, error: memErr } = await supabase
+    .from('memories')
+    .select('id, user_id, title, body, occurred_on, occurred_time, place, people, topics, summary')
+    .eq('id', memoryId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (memErr || !mem) return null
+
+  // 2. Fetch author profile
+  let authorName = 'A friend'
+  if (mem.user_id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', mem.user_id)
+      .maybeSingle()
+    if (profile?.display_name?.trim()) {
+      authorName = profile.display_name.trim()
+    }
+  }
+
+  // 3. Fetch media photos
+  const { data: mediaRows } = await supabase
+    .from('media')
+    .select('storage_path, media_type')
+    .eq('memory_id', memoryId)
+    .eq('media_type', 'image')
+
+  const photos: string[] = []
+  if (mediaRows && mediaRows.length > 0) {
+    const paths = mediaRows.map((m) => m.storage_path)
+    const { data: signedData } = await supabase.storage
+      .from('memory-photos')
+      .createSignedUrls(paths, 60 * 60 * 24)
+
+    for (const item of signedData || []) {
+      if (item.signedUrl) photos.push(item.signedUrl)
+    }
+  }
+
+  // 4. Count perspectives
+  const { count: perspectivesCount } = await supabase
+    .from('memory_perspectives')
+    .select('id', { count: 'exact', head: true })
+    .eq('memory_id', memoryId)
+
+  return {
+    id: mem.id,
+    title: mem.title || 'Shared Moment',
+    body: mem.body || '',
+    date: mem.occurred_on,
+    time: mem.occurred_time,
+    place: mem.place || 'Somewhere special',
+    people: mem.people || [],
+    topics: mem.topics || [],
+    summary: mem.summary || '',
+    authorName,
+    photos,
+    perspectivesCount: perspectivesCount || 0,
+  }
 }
 
 

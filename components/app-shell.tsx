@@ -458,6 +458,7 @@ export function AppShell({
           onDeleteMedia={(mediaId) => removeMedia(detail.id, mediaId)}
           onInvitePeople={handleInvitePeople}
           onAddPerspective={handleAddPerspective}
+          onAddPhoto={(mem) => setPhotoUploadMemory(mem)}
         />
       )}
 
