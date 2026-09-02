@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, Camera, Compass, Mic, PenLine, Sparkles } from 'lucide-react'
+import { ArrowRight, Camera, Compass, Mic, PenLine, Film } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 import type { Memory } from '@/types/memory'
 import { SectionTitle } from '@/components/shared/section-title'
@@ -110,7 +110,7 @@ export function Home({
           <Camera size={15} /> Add photo
         </button>
         <button onClick={() => onGo('rediscover')}>
-          <Sparkles size={15} /> Rediscover
+          <Film size={15} /> Rediscover
         </button>
       </div>
 

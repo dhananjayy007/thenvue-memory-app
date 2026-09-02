@@ -210,12 +210,12 @@ export function AppShell({
     setDraft('')
   }
 
-  const save = async (media: NewMediaInput[] = [], capturedAt: MemoryCaptureTime) => {
+  const save = async (media: NewMediaInput[] = [], capturedAt: MemoryCaptureTime, place?: string) => {
     if (!draft.trim()) throw new Error('Write something before saving this memory.')
     if (saving) return
     setSaving(true)
     try {
-      const created = await createMemory(draft, media, capturedAt)
+      const created = await createMemory(draft, media, capturedAt, place)
       setMemories((prev) => [created, ...prev])
       setCapture(false)
       showToast('Memory saved')

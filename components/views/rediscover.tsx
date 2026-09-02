@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Sparkles, Image as ImageIcon, Plus, Clock, MapPin, Users, Check, AlertCircle } from 'lucide-react'
+import { Film, Image as ImageIcon, Plus, Clock, MapPin, Users, Check, AlertCircle } from 'lucide-react'
 import type { Memory, PastImportQuota } from '@/types/memory'
 import { SectionTitle } from '@/components/shared/section-title'
 import { MemoryCard } from '@/components/memory/memory-card'
@@ -66,7 +66,7 @@ export function Rediscover({
       <div className="rediscover-quota-card">
         <div className="quota-header">
           <div className="quota-title-group">
-            <Sparkles size={18} className="quota-sparkle-icon" />
+            <Film size={18} className="quota-sparkle-icon" />
             <div>
               <h3>Past Photos Quota</h3>
               <p className="quota-explanation">

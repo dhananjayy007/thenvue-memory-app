@@ -161,7 +161,8 @@ export async function backfillMemoryEmbeddingsAction(): Promise<{ processed: num
 export async function createMemory(
   text: string,
   mediaInputs: NewMediaInput[] = [],
-  capturedAt: MemoryCaptureTime = currentCaptureTime()
+  capturedAt: MemoryCaptureTime = currentCaptureTime(),
+  customPlace?: string
 ): Promise<Memory> {
   const supabase = await createClient()
   const {
@@ -175,7 +176,7 @@ export async function createMemory(
   const captureTime = validateCaptureTime(capturedAt)
   const media = validateMediaInputs(mediaInputs, user.id)
   const tags = await tagMemory(body)
-  const place = tags.places[0] || 'Home'
+  const place = customPlace?.trim() || tags.places[0] || 'Home'
 
   // Extract @mentions from text and merge with AI-detected people
   const mentionedPeople = extractMentions(body)

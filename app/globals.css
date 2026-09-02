@@ -4405,6 +4405,129 @@ button { color: inherit; cursor: pointer; }
   cursor: not-allowed;
 }
 
+/* ==========================================================================
+   Capture Modal - Interactive Location & Date Toolbars
+   ========================================================================== */
+
+.capture-tools button.capture-tool-active {
+  background: rgba(229, 115, 115, 0.14) !important;
+  color: var(--accent) !important;
+  border-color: rgba(229, 115, 115, 0.35) !important;
+  font-weight: 600;
+}
+
+.capture-metadata-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.capture-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 16px;
+  font-size: 11px;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: fit-content;
+}
+
+.capture-active-chip:hover {
+  border-color: var(--accent);
+}
+
+.capture-active-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted-foreground);
+  padding: 0;
+  margin-left: 2px;
+  cursor: pointer;
+}
+
+.capture-active-chip button:hover {
+  color: var(--foreground);
+}
+
+.capture-inline-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.capture-inline-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.capture-inline-input {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  outline: none;
+}
+
+.capture-inline-input:focus,
+.capture-inline-date-input:focus,
+.capture-inline-time-input:focus {
+  border-color: var(--accent);
+}
+
+.capture-inline-date-input,
+.capture-inline-time-input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  outline: none;
+}
+
+.capture-inline-detect-btn,
+.capture-inline-done-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.capture-inline-done-btn {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+  font-weight: 600;
+}
+
+.capture-inline-detect-btn:hover {
+  background: var(--card);
+  color: var(--foreground);
+}
+
 
 
 

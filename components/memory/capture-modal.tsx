@@ -28,7 +28,7 @@ export function Capture({
   draft: string
   setDraft: (v: string) => void
   onClose: () => void
-  onSave: (media: NewMediaInput[], capturedAt: MemoryCaptureTime) => Promise<void>
+  onSave: (media: NewMediaInput[], capturedAt: MemoryCaptureTime, place?: string) => Promise<void>
   onSaveVoice?: (params: {
     audioBase64: string
     mimeType: string
@@ -44,6 +44,14 @@ export function Capture({
   const [uploading, setUploading] = useState(false)
   const [optimizing, setOptimizing] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
+
+  // Custom Date and Location State
+  const [customPlace, setCustomPlace] = useState('')
+  const [customDate, setCustomDate] = useState('')
+  const [customTime, setCustomTime] = useState('')
+  const [showPlaceInput, setShowPlaceInput] = useState(false)
+  const [showDateInput, setShowDateInput] = useState(false)
+  const [detectingLocation, setDetectingLocation] = useState(false)
   
   // PDF specific state
   const [showPdfWarning, setShowPdfWarning] = useState(false)
@@ -236,6 +244,43 @@ export function Capture({
     })
   }
 
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      setPhotoError('Geolocation is not supported by your browser.')
+      return
+    }
+    setDetectingLocation(true)
+    setPhotoError(null)
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { 'Accept-Language': 'en' } }
+          )
+          const data = await res.json()
+          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.suburb || ''
+          const state = data.address?.state || ''
+          const loc = [city, state].filter(Boolean).join(', ') || `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`
+          setCustomPlace(loc)
+          setShowPlaceInput(false)
+        } catch {
+          setCustomPlace('Current Location')
+          setShowPlaceInput(false)
+        } finally {
+          setDetectingLocation(false)
+        }
+      },
+      (err) => {
+        console.warn('Geolocation error:', err)
+        setDetectingLocation(false)
+        setPhotoError('Could not access your location. You can type it manually.')
+      },
+      { timeout: 8000 }
+    )
+  }
+
   const handleSave = async () => {
     if (mode === 'voice') {
       await handleVoiceSave()
@@ -247,10 +292,20 @@ export function Capture({
       return
     }
 
-    const capturedAt = currentCaptureTime()
+    const now = new Date()
+    const defaultDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
+    const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+    const capturedAt: MemoryCaptureTime = {
+      date: customDate.trim() || defaultDate,
+      time: customTime.trim() || defaultTime,
+    }
+
+    const placeToSave = customPlace.trim() || undefined
+
     if (photos.length === 0) {
       try {
-        await onSave([], capturedAt)
+        await onSave([], capturedAt, placeToSave)
       } catch (error) {
         setPhotoError(error instanceof Error ? error.message : 'Could not save memory.')
       }
@@ -287,7 +342,7 @@ export function Capture({
         })
       }
 
-      await onSave(media, capturedAt)
+      await onSave(media, capturedAt, placeToSave)
     } catch (error) {
       if (uploadedPaths.length > 0) {
         await createClient().storage.from('memory-photos').remove(uploadedPaths)
@@ -467,6 +522,97 @@ export function Capture({
 
         {photoError && <p className="auth-error">{photoError}</p>}
 
+        {/* Optional Custom Location and Date Inputs / Chips */}
+        {(customPlace || customDate || showPlaceInput || showDateInput) && (
+          <div className="capture-metadata-bar">
+            {showPlaceInput ? (
+              <div className="capture-inline-input-group">
+                <MapPin size={14} className="capture-inline-icon" />
+                <input
+                  type="text"
+                  className="capture-inline-input"
+                  placeholder="Where did this happen? (e.g. Bandra, Mumbai)"
+                  value={customPlace}
+                  onChange={(e) => setCustomPlace(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="capture-inline-detect-btn"
+                  onClick={detectLocation}
+                  disabled={detectingLocation}
+                  title="Detect GPS location"
+                >
+                  {detectingLocation ? 'Locating...' : 'GPS'}
+                </button>
+                <button
+                  type="button"
+                  className="capture-inline-done-btn"
+                  onClick={() => setShowPlaceInput(false)}
+                >
+                  Done
+                </button>
+              </div>
+            ) : customPlace ? (
+              <span className="capture-active-chip" onClick={() => setShowPlaceInput(true)}>
+                <MapPin size={13} />
+                <span>{customPlace}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setCustomPlace('')
+                  }}
+                  title="Remove location"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ) : null}
+
+            {showDateInput ? (
+              <div className="capture-inline-input-group">
+                <CalendarDays size={14} className="capture-inline-icon" />
+                <input
+                  type="date"
+                  className="capture-inline-date-input"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                />
+                <input
+                  type="time"
+                  className="capture-inline-time-input"
+                  value={customTime}
+                  onChange={(e) => setCustomTime(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="capture-inline-done-btn"
+                  onClick={() => setShowDateInput(false)}
+                >
+                  Done
+                </button>
+              </div>
+            ) : customDate ? (
+              <span className="capture-active-chip" onClick={() => setShowDateInput(true)}>
+                <CalendarDays size={13} />
+                <span>{customDate} {customTime ? `· ${customTime}` : ''}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setCustomDate('')
+                    setCustomTime('')
+                  }}
+                  title="Reset to today"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ) : null}
+          </div>
+        )}
+
         <div className="capture-tools">
           {mode === 'voice' ? (
             <button type="button" onClick={() => setMode('text')}>
@@ -500,10 +646,31 @@ export function Capture({
               <button type="button" onClick={() => setMode('voice')}>
                 <Mic size={17} /> Voice
               </button>
-              <button type="button" disabled title="Coming soon">
+              <button
+                type="button"
+                className={customPlace || showPlaceInput ? 'capture-tool-active' : ''}
+                onClick={() => {
+                  setShowPlaceInput((prev) => !prev)
+                  if (showDateInput) setShowDateInput(false)
+                }}
+                title="Add or edit location"
+              >
                 <MapPin size={17} /> Location
               </button>
-              <button type="button" disabled title="Coming soon">
+              <button
+                type="button"
+                className={customDate || showDateInput ? 'capture-tool-active' : ''}
+                onClick={() => {
+                  if (!customDate) {
+                    const now = new Date()
+                    setCustomDate([now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-'))
+                    setCustomTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
+                  }
+                  setShowDateInput((prev) => !prev)
+                  if (showPlaceInput) setShowPlaceInput(false)
+                }}
+                title="Pick custom date and time"
+              >
                 <CalendarDays size={17} /> Date
               </button>
             </>
