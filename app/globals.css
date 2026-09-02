@@ -3690,6 +3690,98 @@ button { color: inherit; cursor: pointer; }
    Shareable Invite Link Card & WhatsApp Share
    ========================================================================== */
 
+.detail-header-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.detail-menu-trigger-btn {
+  background: transparent;
+  border: 0;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.detail-menu-trigger-btn:hover,
+.detail-menu-trigger-btn.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.detail-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  min-width: 190px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: fadeInDown 0.15s ease;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.detail-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.detail-menu-item:hover {
+  background: var(--muted);
+  color: var(--accent);
+}
+
+.detail-menu-item.danger {
+  color: #ef4444;
+}
+
+.detail-menu-item.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+
+.detail-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
 .invite-link-card {
   display: flex;
   align-items: center;
@@ -4137,6 +4229,150 @@ button { color: inherit; cursor: pointer; }
   text-align: center;
   font-size: 12px;
   color: var(--muted-foreground);
+}
+
+/* ==========================================================================
+   Memory Detail In-Place Edit Form
+   ========================================================================== */
+
+.detail-edit-form {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0 24px;
+}
+
+.detail-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.detail-edit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(229, 115, 115, 0.12);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-edit-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-edit-input {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+
+.detail-edit-input:focus {
+  border-color: var(--accent);
+}
+
+.detail-edit-textarea {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  outline: none;
+  resize: vertical;
+  min-height: 140px;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.detail-edit-textarea:focus {
+  border-color: var(--accent);
+}
+
+.detail-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.detail-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.detail-edit-cancel-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.detail-edit-cancel-btn:hover {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.detail-edit-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 0;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.detail-edit-save-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.detail-edit-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 

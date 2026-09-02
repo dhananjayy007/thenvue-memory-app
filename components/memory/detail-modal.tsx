@@ -16,6 +16,11 @@ import {
   Sparkles,
   Share2,
   Camera,
+  Pencil,
+  Check,
+  Calendar,
+  Clock,
+  Loader2,
 } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 import type { Memory, MemoryPerspective } from '@/types/memory'
@@ -23,8 +28,10 @@ import {
   deletePerspectiveAction,
   getConnectedMemoriesAction,
   getMemoryDetailsAction,
+  updateMemoryAction,
 } from '@/app/memories/actions'
 import { renderWithMentions } from '@/lib/mentions'
+import { MentionAutocomplete } from '@/components/memory/mention-autocomplete'
 import type { ConnectedMemory } from '@/lib/ai/connected-memories'
 import { fmt } from '@/lib/format'
 
@@ -38,6 +45,7 @@ export function Detail({
   onInvitePeople,
   onAddPerspective,
   onAddPhoto,
+  onUpdateMemory,
 }: {
   memory: Memory
   memories: Memory[]
@@ -48,6 +56,7 @@ export function Detail({
   onInvitePeople?: (memory: Memory) => void
   onAddPerspective?: (memory: Memory) => void
   onAddPhoto?: (memory: Memory) => void
+  onUpdateMemory?: (updated: Memory) => void
 }) {
   const [memory, setMemory] = useState<Memory>(initialMemory)
   const [connected, setConnected] = useState<ConnectedMemory[] | null>(null)
@@ -56,6 +65,69 @@ export function Detail({
   const [mediaToDelete, setMediaToDelete] = useState<string | null>(null)
   const [perspectiveToDelete, setPerspectiveToDelete] = useState<string | null>(null)
   const [expandedImage, setExpandedImage] = useState<string | null>(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Edit memory states
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(initialMemory.title || '')
+  const [editText, setEditText] = useState(initialMemory.text || '')
+  const [editPlace, setEditPlace] = useState(initialMemory.place || '')
+  const [editDate, setEditDate] = useState(initialMemory.date || '')
+  const [editTime, setEditTime] = useState(initialMemory.time || '')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleStartEdit = () => {
+    setShowMenu(false)
+    setEditTitle(memory.title || '')
+    setEditText(memory.text || '')
+    setEditPlace(memory.place || '')
+    setEditDate(memory.date || '')
+    setEditTime(memory.time || '')
+    setEditError(null)
+    setIsEditing(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim()) {
+      setEditError('Memory text cannot be empty')
+      return
+    }
+    setSavingEdit(true)
+    setEditError(null)
+    try {
+      const updated = await updateMemoryAction({
+        id: memory.id,
+        title: editTitle,
+        text: editText,
+        place: editPlace,
+        date: editDate,
+        time: editTime,
+      })
+      setMemory(updated)
+      onUpdateMemory?.(updated)
+      setIsEditing(false)
+    } catch (err: any) {
+      console.error('Failed to update memory:', err)
+      setEditError(err.message || 'Failed to update memory')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // Close 3-dots menu on outside click
+  useEffect(() => {
+    if (!showMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMenu])
 
   // Fetch full details (participants & perspectives with signed URLs)
   useEffect(() => {
@@ -124,37 +196,76 @@ export function Detail({
               <ArrowLeft size={19} />
             </button>
             <span>Memory</span>
-            <div className="detail-header-actions">
-              {isOwner && onAddPhoto && (
-                <button
-                  type="button"
-                  className="detail-header-btn"
-                  onClick={() => onAddPhoto(memory)}
-                  title="Add photo to this memory"
-                >
-                  <Camera size={16} />
-                  <span>Add Photo</span>
-                </button>
-              )}
-              {isOwner && onInvitePeople && (
-                <button
-                  type="button"
-                  className="detail-header-btn"
-                  onClick={() => onInvitePeople(memory)}
-                  title="Share with people"
-                >
-                  <UserPlus size={16} />
-                  <span>Share</span>
-                </button>
-              )}
-              {isOwner && (
-                <button aria-label="Delete" onClick={() => setShowDeleteConfirm(true)}>
-                  <Trash2 size={17} />
-                </button>
-              )}
-              <button aria-label="More">
-                <MoreHorizontal size={18} />
+            <div className="detail-header-actions" ref={menuRef}>
+              <button
+                type="button"
+                aria-label="More options"
+                title="Options"
+                className={`detail-menu-trigger-btn ${showMenu ? 'active' : ''}`}
+                onClick={() => setShowMenu((prev) => !prev)}
+              >
+                <MoreHorizontal size={19} />
               </button>
+
+              {showMenu && (
+                <div className="detail-dropdown-menu">
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="detail-menu-item"
+                      onClick={handleStartEdit}
+                    >
+                      <Pencil size={15} />
+                      <span>Edit Memory</span>
+                    </button>
+                  )}
+
+                  {isOwner && onAddPhoto && (
+                    <button
+                      type="button"
+                      className="detail-menu-item"
+                      onClick={() => {
+                        setShowMenu(false)
+                        onAddPhoto(memory)
+                      }}
+                    >
+                      <Camera size={15} />
+                      <span>Add Photo</span>
+                    </button>
+                  )}
+
+                  {isOwner && onInvitePeople && (
+                    <button
+                      type="button"
+                      className="detail-menu-item"
+                      onClick={() => {
+                        setShowMenu(false)
+                        onInvitePeople(memory)
+                      }}
+                    >
+                      <UserPlus size={15} />
+                      <span>Share Memory</span>
+                    </button>
+                  )}
+
+                  {isOwner && (
+                    <>
+                      <div className="detail-menu-divider" />
+                      <button
+                        type="button"
+                        className="detail-menu-item danger"
+                        onClick={() => {
+                          setShowMenu(false)
+                          setShowDeleteConfirm(true)
+                        }}
+                      >
+                        <Trash2 size={15} />
+                        <span>Delete Memory</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </header>
 
@@ -254,33 +365,141 @@ export function Detail({
               </div>
             )}
 
-            <p className="eyebrow">
-              {fmt(memory.date)} · {memory.time}
-            </p>
-            <h1>{memory.title}</h1>
-            {memory.summary && <p className="subhead">{memory.summary}</p>}
-            <p className="original-label">
-              {audioMedia.length > 0 ? 'Transcription' : 'Original writing'}
-            </p>
-            <p className="detail-text">{renderWithMentions(memory.text)}</p>
+            {isEditing ? (
+              <div className="detail-edit-form">
+                <div className="detail-edit-header">
+                  <div className="detail-edit-badge">
+                    <Pencil size={13} />
+                    <span>Editing Memory</span>
+                  </div>
+                  {editError && <div className="auth-error">{editError}</div>}
+                </div>
 
-            <div className="metadata">
-              {memory.place && (
-                <span>
-                  <MapPin size={14} /> {memory.place}
-                </span>
-              )}
-              {memory.people.map((p) => (
-                <span key={p}>
-                  <CircleUserRound size={14} /> {p}
-                </span>
-              ))}
-              {memory.topics.map((topic) => (
-                <span key={topic}>
-                  <CustomBrainIcon size={14} /> {topic}
-                </span>
-              ))}
-            </div>
+                <div className="detail-edit-field">
+                  <label className="detail-edit-label">Title</label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Memory title"
+                    className="detail-edit-input"
+                  />
+                </div>
+
+                <div className="detail-edit-field">
+                  <label className="detail-edit-label">
+                    Story & Details <span style={{ textTransform: 'none', opacity: 0.8 }}>(type @ to mention)</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <textarea
+                      ref={textareaRef}
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      placeholder="What happened? Type @username to tag friends..."
+                      className="detail-edit-textarea"
+                      rows={6}
+                    />
+                    <MentionAutocomplete
+                      textareaRef={textareaRef}
+                      value={editText}
+                      onChange={setEditText}
+                    />
+                  </div>
+                </div>
+
+                <div className="detail-edit-grid">
+                  <div className="detail-edit-field">
+                    <label className="detail-edit-label">Date</label>
+                    <input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      className="detail-edit-input"
+                    />
+                  </div>
+                  <div className="detail-edit-field">
+                    <label className="detail-edit-label">Time</label>
+                    <input
+                      type="text"
+                      value={editTime}
+                      onChange={(e) => setEditTime(e.target.value)}
+                      placeholder="e.g. 8:30 PM"
+                      className="detail-edit-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="detail-edit-field">
+                  <label className="detail-edit-label">Place / Location</label>
+                  <input
+                    type="text"
+                    value={editPlace}
+                    onChange={(e) => setEditPlace(e.target.value)}
+                    placeholder="e.g. Bandra, Mumbai"
+                    className="detail-edit-input"
+                  />
+                </div>
+
+                <div className="detail-edit-actions">
+                  <button
+                    type="button"
+                    className="detail-edit-cancel-btn"
+                    onClick={() => setIsEditing(false)}
+                    disabled={savingEdit}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="detail-edit-save-btn"
+                    onClick={handleSaveEdit}
+                    disabled={savingEdit || !editText.trim()}
+                  >
+                    {savingEdit ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={14} />
+                        <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="eyebrow">
+                  {fmt(memory.date)} · {memory.time}
+                </p>
+                <h1>{memory.title}</h1>
+                {memory.summary && <p className="subhead">{memory.summary}</p>}
+                <p className="original-label">
+                  {audioMedia.length > 0 ? 'Transcription' : 'Original writing'}
+                </p>
+                <p className="detail-text">{renderWithMentions(memory.text)}</p>
+
+                <div className="metadata">
+                  {memory.place && (
+                    <span>
+                      <MapPin size={14} /> {memory.place}
+                    </span>
+                  )}
+                  {memory.people.map((p) => (
+                    <span key={p}>
+                      <CircleUserRound size={14} /> {p}
+                    </span>
+                  ))}
+                  {memory.topics.map((topic) => (
+                    <span key={topic}>
+                      <CustomBrainIcon size={14} /> {topic}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* ---------------------------------------------------- */}
             {/* PERSPECTIVES SECTION */}

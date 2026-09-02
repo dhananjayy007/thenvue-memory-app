@@ -417,6 +417,95 @@ export async function deleteMemory(id: string): Promise<void> {
   revalidatePath('/')
 }
 
+export interface UpdateMemoryInput {
+  id: string
+  text: string
+  title?: string
+  place?: string
+  date?: string
+  time?: string
+  topics?: string[]
+}
+
+export async function updateMemoryAction(input: UpdateMemoryInput): Promise<Memory> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const text = input.text.trim()
+  if (!text) throw new Error('Memory text cannot be empty')
+
+  const mentionedPeople = extractMentions(text)
+
+  // Fetch current memory
+  const { data: current, error: readErr } = await supabase
+    .from('memories')
+    .select('id, user_id, people, topics, title, place, occurred_on, occurred_time')
+    .eq('id', input.id)
+    .single()
+
+  if (readErr || !current) throw new Error('Memory not found')
+
+  const existingPeople = (current.people as string[]) || []
+  const allPeople = Array.from(new Set([...existingPeople, ...mentionedPeople]))
+
+  const updatePayload: Record<string, any> = {
+    body: text,
+    people: allPeople,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (input.title !== undefined) {
+    updatePayload.title = input.title.trim() || current.title || memoryTitle(text)
+  }
+  if (input.place !== undefined) {
+    updatePayload.place = input.place.trim()
+  }
+  if (input.date !== undefined && input.date.trim()) {
+    updatePayload.occurred_on = input.date.trim()
+  }
+  if (input.time !== undefined && input.time.trim()) {
+    updatePayload.occurred_time = input.time.trim()
+  }
+  if (input.topics !== undefined) {
+    updatePayload.topics = input.topics
+  }
+
+  const { data: updatedRow, error: updateErr } = await supabase
+    .from('memories')
+    .update(updatePayload)
+    .eq('id', input.id)
+    .eq('user_id', user.id)
+    .select(memoryColumns)
+    .single()
+
+  if (updateErr) throw new Error(updateErr.message)
+
+  // Auto-invite any newly @mentioned users
+  if (mentionedPeople.length > 0) {
+    try {
+      for (const mentionName of mentionedPeople) {
+        const matchingUsers = await searchUsersAction(mentionName)
+        const exactMatch = matchingUsers.find(
+          (u) =>
+            u.displayName.toLowerCase() === mentionName.toLowerCase() ||
+            u.email.toLowerCase().startsWith(mentionName.toLowerCase())
+        )
+        if (exactMatch && exactMatch.id !== user.id) {
+          await inviteParticipantsAction(input.id, [exactMatch.id]).catch(() => {})
+        }
+      }
+    } catch {
+      // Non-blocking auto-invite
+    }
+  }
+
+  revalidatePath('/')
+  return rowToMemoryWithSignedMedia(supabase, updatedRow as MemoryRow, user.id)
+}
+
 export async function deleteMedia(memoryId: string, mediaId: string): Promise<void> {
   const supabase = await createClient()
   const { data: media, error: readError } = await supabase

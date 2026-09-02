@@ -459,6 +459,11 @@ export function AppShell({
           onInvitePeople={handleInvitePeople}
           onAddPerspective={handleAddPerspective}
           onAddPhoto={(mem) => setPhotoUploadMemory(mem)}
+          onUpdateMemory={(updated) => {
+            setMemories((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+            setDetail(updated)
+            showToast('Memory updated')
+          }}
         />
       )}
 
