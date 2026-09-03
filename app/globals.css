@@ -4787,6 +4787,39 @@ button { color: inherit; cursor: pointer; }
   border-color: var(--accent);
 }
 
+@media (max-width: 760px) {
+  .capture-tools {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    overflow-x: visible !important;
+  }
+
+  .capture-tool-label {
+    display: none !important;
+  }
+
+  .capture-tools button,
+  .capture-tools .capture-photo-input {
+    width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 9px !important;
+    flex: 1 !important;
+    cursor: pointer !important;
+  }
+
+  .capture-tools svg {
+    margin: 0 !important;
+  }
+}
+
+
 
 
 

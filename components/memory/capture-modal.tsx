@@ -620,8 +620,9 @@ export function Capture({
             </button>
           ) : (
             <>
-              <label className="capture-photo-input">
-                <Camera size={17} /> Camera
+              <label className="capture-photo-input" title="Take a photo with camera" aria-label="Camera">
+                <Camera size={18} />
+                <span className="capture-tool-label">Camera</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -631,7 +632,7 @@ export function Capture({
                   disabled={busy || photos.length >= MAX_MEDIA_PER_MEMORY}
                 />
               </label>
-              <label className="capture-photo-input">
+              <label className="capture-photo-input" title="Attach photos or documents" aria-label="Attach Photo / Doc">
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -641,10 +642,11 @@ export function Capture({
                   disabled={busy}
                 />
                 <ImageIcon size={18} />
-                Attach Photo / Doc
+                <span className="capture-tool-label">Attach Photo / Doc</span>
               </label>
-              <button type="button" onClick={() => setMode('voice')}>
-                <Mic size={17} /> Voice
+              <button type="button" onClick={() => setMode('voice')} title="Record voice note" aria-label="Voice">
+                <Mic size={18} />
+                <span className="capture-tool-label">Voice</span>
               </button>
               <button
                 type="button"
@@ -654,8 +656,10 @@ export function Capture({
                   if (showDateInput) setShowDateInput(false)
                 }}
                 title="Add or edit location"
+                aria-label="Location"
               >
-                <MapPin size={17} /> Location
+                <MapPin size={18} />
+                <span className="capture-tool-label">Location</span>
               </button>
               <button
                 type="button"
@@ -670,8 +674,10 @@ export function Capture({
                   if (showPlaceInput) setShowPlaceInput(false)
                 }}
                 title="Pick custom date and time"
+                aria-label="Date"
               >
-                <CalendarDays size={17} /> Date
+                <CalendarDays size={18} />
+                <span className="capture-tool-label">Date</span>
               </button>
             </>
           )}
