@@ -1,9 +1,10 @@
-import { Bell, Search } from 'lucide-react'
+import { Bell, HelpCircle, Search } from 'lucide-react'
 import { ThenvueLogo } from '@/components/icons/thenvue-logo'
 
 export function Topbar({
   onSearch,
   onOpenNotifications,
+  onOpenTutorial,
   unreadCount = 0,
 }: {
   dark?: boolean
@@ -24,6 +25,11 @@ export function Topbar({
       </div>
 
       <div className="top-actions">
+        {onOpenTutorial && (
+          <button aria-label="Tutorial" title="Tutorial & Walkthrough" onClick={onOpenTutorial}>
+            <HelpCircle size={18} />
+          </button>
+        )}
         {onOpenNotifications && (
           <button
             className="topbar-notifications-btn"

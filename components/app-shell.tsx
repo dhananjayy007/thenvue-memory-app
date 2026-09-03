@@ -378,6 +378,7 @@ export function AppShell({
       <main className="main-content">
         <Topbar
           onSearch={handleSearchClick}
+          onOpenTutorial={() => setShowOnboarding(true)}
           onOpenNotifications={() => setShowNotifications(true)}
           unreadCount={unreadNotificationsCount}
         />
