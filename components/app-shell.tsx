@@ -377,9 +377,6 @@ export function AppShell({
 
       <main className="main-content">
         <Topbar
-          dark={dark}
-          onToggleTheme={toggleTheme}
-          onCapture={() => openCapture('text')}
           onSearch={handleSearchClick}
           onOpenNotifications={() => setShowNotifications(true)}
           unreadCount={unreadNotificationsCount}

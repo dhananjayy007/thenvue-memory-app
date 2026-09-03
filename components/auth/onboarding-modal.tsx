@@ -113,7 +113,7 @@ export function OnboardingModal({ isOpen, onComplete }: OnboardingModalProps) {
       id: 'rediscover',
       eyebrow: 'MEANINGFUL CONNECTIONS',
       title: 'Rediscover your story',
-      description: 'Thenvue brings moments back when it\'s time to remember them.',
+      description: 'Import past photos and let Thenvue reconstruct your timeline.',
       renderVisual: () => (
         <div className="onboarding-visual-card">
           <div className="onboarding-tags-row">
@@ -133,6 +133,34 @@ export function OnboardingModal({ isOpen, onComplete }: OnboardingModalProps) {
           <div className="onboarding-connected-card">
             <span className="onboarding-answer-label">TIME PATTERN</span>
             <strong>&ldquo;Happened on this same day 2 years ago&rdquo;</strong>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'perspectives',
+      eyebrow: 'CO-CREATION & PERSPECTIVES',
+      title: 'One moment, multiple views',
+      description: 'Invite friends who experienced the moment with you to add their photos, voice notes, and perspectives.',
+      renderVisual: () => (
+        <div className="onboarding-visual-card">
+          <div className="onboarding-tags-row">
+            <div className="onboarding-tag">
+              <Users size={13} />
+              <span>Co-create</span>
+            </div>
+            <div className="onboarding-tag">
+              <Mic size={13} />
+              <span>Voice notes</span>
+            </div>
+            <div className="onboarding-tag">
+              <Camera size={13} />
+              <span>Photos</span>
+            </div>
+          </div>
+          <div className="onboarding-connected-card">
+            <span className="onboarding-answer-label">COLLABORATIVE MEMORY</span>
+            <strong>&ldquo;3 friends added their perspectives to this moment&rdquo;</strong>
           </div>
         </div>
       ),

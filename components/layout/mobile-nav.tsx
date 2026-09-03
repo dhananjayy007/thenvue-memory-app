@@ -1,4 +1,4 @@
-import { BookOpen, CircleUserRound, Clock3, Plus } from 'lucide-react'
+import { Home, Clock, Plus, User } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 
 export function MobileNav({
@@ -15,34 +15,44 @@ export function MobileNav({
       <button
         className={view === 'home' ? 'mobile-nav-item active' : 'mobile-nav-item'}
         onClick={() => onGo('home')}
+        aria-label="Home"
+        title="Home"
       >
-        <BookOpen size={18} />
-        <span>Home</span>
+        <Home size={20} strokeWidth={1.8} />
       </button>
       <button
         className={view === 'timeline' ? 'mobile-nav-item active' : 'mobile-nav-item'}
         onClick={() => onGo('timeline')}
+        aria-label="Timeline"
+        title="Timeline"
       >
-        <Clock3 size={18} />
-        <span>Timeline</span>
+        <Clock size={20} strokeWidth={1.8} />
       </button>
-      <button className="mobile-nav-capture" onClick={onCapture}>
-        <Plus size={22} />
-        <span>Capture</span>
+      <button
+        className="mobile-nav-item mobile-nav-capture-btn"
+        onClick={onCapture}
+        aria-label="Capture"
+        title="Capture memory"
+      >
+        <div className="mobile-capture-squircle">
+          <Plus size={18} strokeWidth={2.2} />
+        </div>
       </button>
       <button
         className={view === 'ask' ? 'mobile-nav-item active' : 'mobile-nav-item'}
         onClick={() => onGo('ask')}
+        aria-label="Ask"
+        title="Ask"
       >
-        <CustomBrainIcon size={18} />
-        <span>Ask</span>
+        <CustomBrainIcon size={20} />
       </button>
       <button
         className={view === 'you' ? 'mobile-nav-item active' : 'mobile-nav-item'}
         onClick={() => onGo('you')}
+        aria-label="You"
+        title="You"
       >
-        <CircleUserRound size={18} />
-        <span>You</span>
+        <User size={20} strokeWidth={1.8} />
       </button>
     </nav>
   )

@@ -1,4 +1,4 @@
-import { Bell, MoreHorizontal, Moon, Plus, Sun } from 'lucide-react'
+import { MoreHorizontal, Moon, Plus, Sun } from 'lucide-react'
 import type { NavItem } from '@/types/memory'
 import { ThenvueLogo } from '@/components/icons/thenvue-logo'
 
@@ -11,8 +11,8 @@ export function Sidebar({
   onToggleTheme,
   displayName,
   onSignOut,
-  onOpenNotifications,
-  unreadCount = 0,
+  onOpenNotifications: _onOpenNotifications,
+  unreadCount: _unreadCount = 0,
 }: {
   nav: NavItem[]
   view: string
