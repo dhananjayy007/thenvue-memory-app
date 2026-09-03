@@ -4409,6 +4409,45 @@ button { color: inherit; cursor: pointer; }
    Capture Modal - Interactive Location & Date Toolbars
    ========================================================================== */
 
+.capture-header,
+.capture-modal header,
+.detail-modal header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  min-height: 36px !important;
+  margin-bottom: 12px !important;
+}
+
+.capture-header-title {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--muted-foreground) !important;
+}
+
+.capture-close {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--muted-foreground) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  margin-left: auto !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.capture-close:hover {
+  background: var(--muted) !important;
+  color: var(--foreground) !important;
+}
+
 .capture-tools button.capture-tool-active {
   background: rgba(229, 115, 115, 0.14) !important;
   color: var(--accent) !important;

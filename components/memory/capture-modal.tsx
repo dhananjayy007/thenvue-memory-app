@@ -359,22 +359,22 @@ export function Capture({
     <div className="overlay">
       <div className="capture-modal">
         {showPdfWarning ? (
-          <div className="capture-header">
-            <span>Notice: PDF Compression</span>
-            <button className="capture-close" onClick={() => {
+          <header className="capture-header">
+            <span className="capture-header-title">Attachment Notice</span>
+            <button type="button" className="capture-close" onClick={() => {
               setShowPdfWarning(false)
               setPendingPdfFiles([])
-            }}>
-              <X size={20} />
+            }} aria-label="Close">
+              <X size={18} />
             </button>
-          </div>
+          </header>
         ) : (
-          <div className="capture-header">
-            <span>{mode === 'voice' ? 'Record a voice memory' : 'Capture a memory'}</span>
-            <button className="capture-close" onClick={onClose} disabled={busy}>
-              <X size={20} />
+          <header className="capture-header">
+            <span className="capture-header-title">{mode === 'voice' ? 'Record a voice memory' : 'Capture a memory'}</span>
+            <button type="button" className="capture-close" onClick={onClose} disabled={busy} aria-label="Close">
+              <X size={18} />
             </button>
-          </div>
+          </header>
         )}
 
         {showPdfWarning ? (

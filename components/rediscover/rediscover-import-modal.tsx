@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import {
   X,
   UploadCloud,
-  Sparkles,
+  Film,
   Check,
   Calendar,
   Clock,
@@ -274,7 +274,7 @@ export function RediscoverImportModal({
         <div className="rediscover-modal-header">
           <div className="rediscover-header-left">
             <div className="rediscover-icon-wrap">
-              <Sparkles size={18} />
+              <Film size={18} />
             </div>
             <div>
               <h3>Rediscover Your Past</h3>
@@ -382,7 +382,7 @@ export function RediscoverImportModal({
           <div className="rediscover-processing-stage">
             <div className="processing-spinner-wrap">
               <div className="pulse-glow" />
-              <Sparkles size={36} className="processing-sparkle" />
+              <Film size={36} className="processing-sparkle" />
             </div>
             <h4>Rediscovering your past...</h4>
             <p className="processing-status-label">{processingStatus}</p>
