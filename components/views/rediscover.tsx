@@ -6,6 +6,7 @@ import type { Memory, PastImportQuota } from '@/types/memory'
 import { SectionTitle } from '@/components/shared/section-title'
 import { MemoryCard } from '@/components/memory/memory-card'
 import { getPastImportQuotaAction, getRediscoveredMemoriesAction } from '@/app/memories/actions'
+import { FeatureTip } from '@/components/shared/feature-tip'
 
 export function Rediscover({
   onOpen,
@@ -61,6 +62,16 @@ export function Rediscover({
           <span>{quota.remaining === 0 ? 'Quota Reached (100/100)' : 'Add Photos'}</span>
         </button>
       </div>
+
+      <FeatureTip
+        storageKey="rediscover_page_intro"
+        icon={<Film size={16} />}
+        title="Reconstruct Past Memories from Photos"
+        description="Select old photos from your camera roll. Thenvue automatically clusters timestamps and locations into ready-to-save memories."
+        primaryActionLabel="Import Past Photos"
+        onPrimaryAction={onStartImport}
+        secondaryActionLabel="Got it"
+      />
 
       {/* Quota Indicator Box */}
       <div className="rediscover-quota-card">

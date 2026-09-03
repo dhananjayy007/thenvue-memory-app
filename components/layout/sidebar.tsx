@@ -46,19 +46,6 @@ export function Sidebar({
             <span>{label}</span>
           </button>
         ))}
-
-        {onOpenNotifications && (
-          <button
-            type="button"
-            className="nav-item sidebar-notifications-item"
-            onClick={onOpenNotifications}
-            style={{ position: 'relative' }}
-          >
-            <Bell size={17} />
-            <span>Notifications</span>
-            {unreadCount > 0 && <span className="sidebar-unread-pill">{unreadCount}</span>}
-          </button>
-        )}
       </nav>
       <div className="sidebar-bottom">
         <button className="capture-button" onClick={onCapture}>

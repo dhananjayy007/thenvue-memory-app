@@ -4567,6 +4567,133 @@ button { color: inherit; cursor: pointer; }
   color: var(--foreground);
 }
 
+/* ==========================================================================
+   Contextual Feature Tips / Onboarding Coachmarks
+   ========================================================================== */
+
+.feature-tip-card {
+  background: var(--card);
+  border: 1px solid rgba(229, 115, 115, 0.4);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 14px 0 20px;
+  box-shadow: 0 4px 20px -2px rgba(229, 115, 115, 0.08);
+  position: relative;
+  overflow: hidden;
+  animation: slideDownFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feature-tip-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.feature-tip-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(229, 115, 115, 0.15);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.feature-tip-content {
+  flex: 1;
+}
+
+.feature-tip-content h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 4px;
+}
+
+.feature-tip-content p {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.feature-tip-close {
+  background: transparent;
+  border: 0;
+  color: var(--muted-foreground);
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.feature-tip-close:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.feature-tip-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-left: 44px;
+}
+
+.feature-tip-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feature-tip-primary-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.feature-tip-secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feature-tip-secondary-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+
 
 
 

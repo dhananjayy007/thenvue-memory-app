@@ -34,6 +34,7 @@ import { renderWithMentions } from '@/lib/mentions'
 import { MentionAutocomplete } from '@/components/memory/mention-autocomplete'
 import type { ConnectedMemory } from '@/lib/ai/connected-memories'
 import { fmt } from '@/lib/format'
+import { FeatureTip } from '@/components/shared/feature-tip'
 
 export function Detail({
   memory: initialMemory,
@@ -537,6 +538,19 @@ export function Detail({
                   </button>
                 )}
               </div>
+
+              {/* Contextual Feature Discovery Tip for Adding Perspectives & Friends */}
+              {isOwner && onInvitePeople && (
+                <FeatureTip
+                  storageKey="perspectives_intro"
+                  icon={<Users size={16} />}
+                  title="One Moment. Multiple Perspectives."
+                  description="Invite friends who lived this moment with you so they can add their photos, voice reflections, and memories."
+                  primaryActionLabel="Invite Friends"
+                  onPrimaryAction={() => onInvitePeople(memory)}
+                  secondaryActionLabel="Got it"
+                />
+              )}
 
               {perspectives.length > 0 && (
                 <div className="perspectives-cards-list">

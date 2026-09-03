@@ -8,6 +8,7 @@ import { PageIntro } from '@/components/shared/page-intro'
 import { askMyLifeAction } from '@/app/memories/actions'
 import type { AskMyLifeResult, ConversationTurn } from '@/lib/ai/answer-question'
 import { fmt } from '@/lib/format'
+import { FeatureTip } from '@/components/shared/feature-tip'
 
 const SUGGESTED_QUESTIONS = [
   'When did I first mention wanting to change jobs?',
@@ -72,6 +73,14 @@ export function Ask({
         eyebrow="A quiet memory assistant"
         title="Ask your life"
         description="Search your life through questions, grounded in your saved memories."
+      />
+
+      <FeatureTip
+        storageKey="ask_page_intro"
+        icon={<CustomBrainIcon size={16} />}
+        title="Ask Your Memory Private AI"
+        description="Search your moments by concept, feeling, or people (e.g., 'trips with Rahul' or 'times I felt at peace')."
+        secondaryActionLabel="Got it"
       />
 
       <div className="ask-box">
