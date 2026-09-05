@@ -3,6 +3,20 @@ export const fmt = (date: string) =>
     new Date(`${date}T12:00:00`)
   )
 
+export function formatDateShort(dateStr: string): string {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(`${dateStr.slice(0, 10)}T12:00:00`)
+    const currentYear = new Date().getFullYear()
+    if (d.getFullYear() === currentYear) {
+      return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d)
+    }
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(d)
+  } catch {
+    return dateStr
+  }
+}
+
 /**
  * Returns today's date in YYYY-MM-DD format for a given timezone.
  */

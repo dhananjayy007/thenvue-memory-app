@@ -12,6 +12,27 @@ export function formatDate(isoDate: string): string {
   }
 }
 
+export function formatDateShort(isoDate: string): string {
+  try {
+    const parts = isoDate.split('-').map(Number)
+    const date = new Date(parts[0], parts[1] - 1, parts[2])
+    const currentYear = new Date().getFullYear()
+    if (parts[0] === currentYear) {
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }).format(date)
+    }
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date)
+  } catch {
+    return isoDate
+  }
+}
+
 export function formatTime(isoTime: string): string {
   try {
     const [h, m] = isoTime.split(':').map(Number)

@@ -2,7 +2,7 @@
 
 import { Camera, ChevronRight, MapPin } from 'lucide-react'
 import type { Memory } from '@/types/memory'
-import { isSameCalendarDay } from '@/lib/format'
+import { isSameCalendarDay, formatDateShort } from '@/lib/format'
 import { renderWithMentions } from '@/lib/mentions'
 
 export function MemoryRow({
@@ -32,7 +32,10 @@ export function MemoryRow({
           }
         }}
       >
-        <span className="row-time">{memory.time}</span>
+        <div className="row-time-col">
+          <span className="row-date">{formatDateShort(memory.date)}</span>
+          <span className="row-time">{memory.time}</span>
+        </div>
         <span className="row-content">
           <strong>{renderWithMentions(memory.text)}</strong>
           <small>

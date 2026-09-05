@@ -4,7 +4,7 @@ import { Image } from 'expo-image'
 import { ChevronRight, MapPin } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
-import { formatTime } from '../lib/format'
+import { formatTime, formatDateShort } from '../lib/format'
 
 export function MemoryRow({
   memory,
@@ -26,7 +26,10 @@ export function MemoryRow({
       activeOpacity={0.7}
       onPress={onPress}
     >
-      <Text style={[styles.time, { color: colors.textMuted }]}>{formatTime(memory.time)}</Text>
+      <View style={styles.timeCol}>
+        <Text style={[styles.date, { color: colors.text }]}>{formatDateShort(memory.date)}</Text>
+        <Text style={[styles.time, { color: colors.textMuted }]}>{formatTime(memory.time)}</Text>
+      </View>
 
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
@@ -78,10 +81,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 12,
   },
+  timeCol: {
+    width: 58,
+    gap: 2,
+  },
+  date: {
+    fontSize: 10,
+    fontWeight: '600',
+    lineHeight: 13,
+  },
   time: {
-    width: 48,
     fontSize: 9,
-    fontWeight: '500',
+    fontWeight: '400',
+    lineHeight: 12,
   },
   content: {
     flex: 1,
