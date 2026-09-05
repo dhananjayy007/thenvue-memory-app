@@ -77,3 +77,67 @@ export function isSameCalendarDay(memoryDate: string, timeZone?: string): boolea
   return memoryDate.slice(0, 10) === today
 }
 
+/**
+ * Safely converts a date string, time string, or combined timestamp into a valid ISO string.
+ */
+export function toValidIsoString(dateOrTimestamp?: string | null, timeStr?: string | null): string {
+  if (!dateOrTimestamp && !timeStr) {
+    return new Date().toISOString()
+  }
+
+  if (dateOrTimestamp && !timeStr) {
+    const malformedMatch = dateOrTimestamp.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i)
+    if (malformedMatch) {
+      const datePart = malformedMatch[1]
+      let h = parseInt(malformedMatch[2], 10)
+      const m = malformedMatch[3]
+      const s = malformedMatch[4] || '00'
+      const ampm = malformedMatch[5]
+      if (ampm) {
+        const isPM = ampm.toUpperCase() === 'PM'
+        if (isPM && h < 12) h += 12
+        if (!isPM && h === 12) h = 0
+      }
+      const iso = new Date(`${datePart}T${String(h).padStart(2, '0')}:${m}:${s}Z`)
+      if (!isNaN(iso.getTime())) return iso.toISOString()
+    }
+
+    const d = new Date(dateOrTimestamp)
+    if (!isNaN(d.getTime())) {
+      return d.toISOString()
+    }
+  }
+
+  const datePart = (dateOrTimestamp || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
+  let timePart = '12:00:00'
+
+  if (timeStr && typeof timeStr === 'string') {
+    const trimmed = timeStr.trim()
+    const match12 = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i)
+    if (match12) {
+      let h = parseInt(match12[1], 10)
+      const m = match12[2]
+      const s = match12[3] || '00'
+      const isPM = match12[4].toUpperCase() === 'PM'
+      if (isPM && h < 12) h += 12
+      if (!isPM && h === 12) h = 0
+      timePart = `${String(h).padStart(2, '0')}:${m}:${s}`
+    } else {
+      const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/)
+      if (match24) {
+        const h = String(parseInt(match24[1], 10)).padStart(2, '0')
+        const m = match24[2]
+        const s = match24[3] || '00'
+        timePart = `${h}:${m}:${s}`
+      }
+    }
+  }
+
+  const combined = new Date(`${datePart}T${timePart}Z`)
+  if (!isNaN(combined.getTime())) {
+    return combined.toISOString()
+  }
+
+  return new Date().toISOString()
+}
+

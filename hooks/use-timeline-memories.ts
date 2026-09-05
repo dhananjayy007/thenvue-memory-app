@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Memory } from '@/types/memory'
 import { getMemoriesPageAction } from '@/app/memories/actions'
+import { toValidIsoString } from '@/lib/format'
 
 export interface UseTimelineMemoriesResult {
   memories: Memory[]
@@ -44,7 +45,7 @@ export function useTimelineMemories(initialMemories: Memory[] = [], userId?: str
   useEffect(() => {
     if (initialMemories.length > 0 && !nextCursor) {
       const last = initialMemories[initialMemories.length - 1]
-      const lastCursor = (last as any).occurred_at || `${last.date}T${last.time || '12:00:00'}Z`
+      const lastCursor = toValidIsoString((last as any).occurred_at || (last as any).occurredAt || last.date, last.time)
       setNextCursor(lastCursor)
     }
   }, [initialMemories, nextCursor])

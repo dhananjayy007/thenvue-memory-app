@@ -12,7 +12,7 @@ import type {
   ImportedAsset,
 } from '../types/memory'
 import { tagMemory, embedText, transcribeAudio } from './ai'
-import { isSameCalendarDay } from './format'
+import { isSameCalendarDay, toValidIsoString } from './format'
 
 export async function getBatchSignedMediaUrls(rawMediaList: ({ storage_path?: string; media_type?: string } | string)[]) {
   const normalized = rawMediaList.map((m) =>
@@ -266,7 +266,7 @@ export async function fetchMemoriesPage(
       .order('occurred_at', { ascending: false })
 
     if (cursor) {
-      fallbackQuery = fallbackQuery.lt('occurred_at', cursor)
+      fallbackQuery = fallbackQuery.lt('occurred_at', toValidIsoString(cursor))
     }
     fallbackQuery = fallbackQuery.limit(safeLimit + 1)
 
@@ -284,40 +284,29 @@ export async function fetchMemoriesPage(
   const hasMore = rows.length > safeLimit
   const pageRows = hasMore ? rows.slice(0, safeLimit) : rows
 
-  // Deduplicate: Filter out secondary cloned copies if the parent shared memory is present in page
-  const parentIds = new Set(pageRows.map((r: any) => r.id))
-  const filteredRawMemories = pageRows.filter((r: any) => {
-    if (r.source_memory_id && parentIds.has(r.source_memory_id)) {
-      return false
+  // Batch fetch signed URLs for all media in this page
+  const allMediaInPage: any[] = []
+  for (const m of pageRows) {
+    if (m.media && Array.isArray(m.media)) {
+      allMediaInPage.push(...m.media)
     }
-    return true
-  })
+  }
 
-  // Batch fetch signed URLs
-  const allMedia = filteredRawMemories.flatMap((m: any) => (m.media as any[]) || [])
-  const signedUrlMap = await getBatchSignedMediaUrls(allMedia)
+  const urlMap = await getBatchSignedMediaUrls(allMediaInPage)
 
   const formatted: Memory[] = []
-
-  for (const m of filteredRawMemories) {
+  for (const m of pageRows) {
     const rawMedia = (m.media as any[]) || []
-    const mediaAssets: MediaAsset[] = rawMedia.flatMap((item: any) => {
-      const url = signedUrlMap.get(item.storage_path) || ''
-      return url
-        ? [
-            {
-              id: item.id,
-              url,
-              storagePath: item.storage_path,
-              mediaType: item.media_type as 'image' | 'audio' | 'document',
-              fileName: item.file_name,
-              fileSize: Number(item.file_size || 0),
-              perspectiveId: item.perspective_id,
-              createdAt: item.created_at,
-            },
-          ]
-        : []
-    })
+    const mediaAssets: MediaAsset[] = rawMedia.map((item) => ({
+      id: item.id,
+      url: urlMap.get(item.storage_path) || '',
+      storagePath: item.storage_path,
+      mediaType: item.media_type as 'image' | 'audio' | 'document',
+      fileName: item.file_name,
+      fileSize: Number(item.file_size || 0),
+      perspectiveId: item.perspective_id,
+      createdAt: item.created_at,
+    }))
 
     formatted.push({
       id: m.id,
@@ -325,7 +314,7 @@ export async function fetchMemoriesPage(
       title: m.title || 'Untitled Memory',
       text: m.body,
       date: m.occurred_on,
-      time: (m.occurred_time || '12:00:00').slice(0, 5),
+      time: m.occurred_time,
       place: m.place || '',
       people: m.people || [],
       mood: m.mood || 'calm',
@@ -339,8 +328,9 @@ export async function fetchMemoriesPage(
     })
   }
 
+  const lastRow = pageRows[pageRows.length - 1]
   const nextCursor = hasMore && pageRows.length > 0
-    ? (pageRows[pageRows.length - 1] as any).occurred_at || `${pageRows[pageRows.length - 1].occurred_on}T${pageRows[pageRows.length - 1].occurred_time || '12:00:00'}Z`
+    ? toValidIsoString((lastRow as any)?.occurred_at || lastRow?.occurred_on, lastRow?.occurred_time)
     : null
 
   return {

@@ -12,6 +12,7 @@ import {
 } from '@/lib/memories'
 import { tagMemory } from '@/lib/ai/tag-memory'
 import { embedMemorySafe } from '@/lib/ai/embed-memory'
+import { toValidIsoString } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +35,7 @@ export async function GET(request: NextRequest) {
     .order('occurred_at', { ascending: false })
 
   if (cursor) {
-    // If cursor is a valid ISO timestamp or date
-    query = query.lt('occurred_at', cursor)
+    query = query.lt('occurred_at', toValidIsoString(cursor))
   }
 
   // Fetch limit + 1 to detect if there is a next page
@@ -49,8 +49,9 @@ export async function GET(request: NextRequest) {
   const hasMore = rows.length > limit
   const pageRows = hasMore ? rows.slice(0, limit) : rows
   const memories = await rowsToMemories(auth.client, pageRows)
+  const lastRow = pageRows[pageRows.length - 1]
   const nextCursor = hasMore && pageRows.length > 0
-    ? (pageRows[pageRows.length - 1] as any).occurred_at || `${pageRows[pageRows.length - 1].occurred_on}T${pageRows[pageRows.length - 1].occurred_time || '12:00:00'}Z`
+    ? toValidIsoString((lastRow as any)?.occurred_at || lastRow?.occurred_on, lastRow?.occurred_time)
     : null
 
   return NextResponse.json({

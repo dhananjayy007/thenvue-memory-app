@@ -20,6 +20,7 @@ import { searchSemanticMemories, type SemanticMemoryResult } from '@/lib/ai/sear
 import { findConnectedMemories, type ConnectedMemory } from '@/lib/ai/connected-memories'
 import { answerQuestion, type AskMyLifeResult, type ConversationTurn } from '@/lib/ai/answer-question'
 import { extractMentions } from '@/lib/mentions'
+import { toValidIsoString } from '@/lib/format'
 import { createHash } from 'crypto'
 import type {
   Memory,
@@ -105,7 +106,7 @@ export async function getMemoriesPageAction({
     .order('occurred_at', { ascending: false })
 
   if (cursor) {
-    query = query.lt('occurred_at', cursor)
+    query = query.lt('occurred_at', toValidIsoString(cursor))
   }
 
   query = query.limit(safeLimit + 1)
@@ -122,7 +123,7 @@ export async function getMemoriesPageAction({
         .order('occurred_at', { ascending: false })
 
       if (cursor) {
-        fallbackQuery = fallbackQuery.lt('occurred_at', cursor)
+        fallbackQuery = fallbackQuery.lt('occurred_at', toValidIsoString(cursor))
       }
       fallbackQuery = fallbackQuery.limit(safeLimit + 1)
 
@@ -150,8 +151,9 @@ export async function getMemoriesPageAction({
   })
 
   const memories = await rowsToMemories(supabase, filteredRows as MemoryRow[], user.id)
+  const lastRow = pageRows[pageRows.length - 1]
   const nextCursor = hasMore && pageRows.length > 0
-    ? (pageRows[pageRows.length - 1] as any).occurred_at || `${pageRows[pageRows.length - 1].occurred_on}T${pageRows[pageRows.length - 1].occurred_time || '12:00:00'}Z`
+    ? toValidIsoString((lastRow as any)?.occurred_at || lastRow?.occurred_on, lastRow?.occurred_time)
     : null
 
   return {
