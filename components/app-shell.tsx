@@ -37,6 +37,7 @@ import { PhotoUploadModal } from '@/components/memory/photo-upload-modal'
 import { InvitePeopleModal } from '@/components/memory/invite-people-modal'
 import { PerspectiveComposerModal } from '@/components/memory/perspective-composer-modal'
 import { NotificationCenter } from '@/components/notifications/notification-center'
+import { useTimelineMemories } from '@/hooks/use-timeline-memories'
 
 export function AppShell({
   displayName,
@@ -47,7 +48,19 @@ export function AppShell({
   memberSince: string
   initialMemories: Memory[]
 }) {
-  const [memories, setMemories] = useState<Memory[]>(initialMemories)
+  const {
+    memories,
+    isLoadingMore,
+    hasMore,
+    loadMore,
+    refresh,
+    optimisticAdd,
+    optimisticUpdate,
+    optimisticRemove,
+    updateEnrichment,
+    setMemories,
+  } = useTimelineMemories(initialMemories)
+
   const [view, setView] = useState('home')
   const [dark, setDark] = useState(true)
   const [capture, setCapture] = useState(false)
@@ -219,7 +232,7 @@ export function AppShell({
     setSaving(true)
     try {
       const created = await createMemory(textToSave, media, capturedAt, place)
-      setMemories((prev) => [created, ...prev])
+      optimisticAdd(created)
       setCapture(false)
       showToast('Memory saved')
 
@@ -227,7 +240,7 @@ export function AppShell({
       enrichMemoryAction(created.id, place)
         .then((enriched) => {
           if (enriched) {
-            setMemories((prev) => prev.map((m) => (m.id === enriched.id ? enriched : m)))
+            updateEnrichment(enriched)
           }
         })
         .catch(() => {})
@@ -259,7 +272,7 @@ export function AppShell({
         fileSize,
         capturedAt,
       })
-      setMemories((prev) => [created, ...prev])
+      optimisticAdd(created)
       setCapture(false)
       showToast('Voice memory saved')
 
@@ -271,7 +284,7 @@ export function AppShell({
       })
         .then((processed) => {
           if (processed) {
-            setMemories((prev) => prev.map((m) => (m.id === processed.id ? processed : m)))
+            updateEnrichment(processed)
           }
         })
         .catch(() => {})
@@ -282,7 +295,7 @@ export function AppShell({
 
   const removeMemory = async (id: string) => {
     const previous = memories
-    setMemories((cur) => cur.filter((m) => m.id !== id))
+    optimisticRemove(id)
     setDetail(null)
     try {
       await deleteMemory(id)
@@ -420,7 +433,16 @@ export function AppShell({
           />
         )}
         {view === 'timeline' && (
-          <Timeline memories={filtered} onOpen={setDetail} query={query} setQuery={setQuery} onCapture={() => openCapture('text')} />
+          <Timeline
+            memories={filtered}
+            onOpen={setDetail}
+            query={query}
+            setQuery={setQuery}
+            onCapture={() => openCapture('text')}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={loadMore}
+          />
         )}
         {view === 'memories' && (
           <Memories
@@ -483,7 +505,7 @@ export function AppShell({
           onAddPerspective={handleAddPerspective}
           onAddPhoto={(mem) => setPhotoUploadMemory(mem)}
           onUpdateMemory={(updated) => {
-            setMemories((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+            optimisticUpdate(updated)
             setDetail(updated)
             showToast('Memory updated')
           }}

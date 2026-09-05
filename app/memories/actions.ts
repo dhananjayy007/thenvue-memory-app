@@ -83,6 +83,84 @@ export async function getMemories(): Promise<Memory[]> {
   return rowsToMemories(supabase, filteredRows as MemoryRow[], user.id)
 }
 
+export async function getMemoriesPageAction({
+  limit = 20,
+  cursor,
+}: {
+  limit?: number
+  cursor?: string
+} = {}): Promise<{ memories: Memory[]; nextCursor: string | null; hasMore: boolean }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { memories: [], nextCursor: null, hasMore: false }
+
+  const safeLimit = Math.min(Math.max(limit, 1), 100)
+
+  let query = supabase
+    .from('memories')
+    .select(memoryColumns)
+    .is('deleted_at', null)
+    .order('occurred_at', { ascending: false })
+
+  if (cursor) {
+    query = query.lt('occurred_at', cursor)
+  }
+
+  query = query.limit(safeLimit + 1)
+
+  let rawData: any = null
+  const { data, error } = await query
+
+  if (error) {
+    if (error.message.includes('perspective_id') || error.message.includes('source_memory_id') || error.message.includes('shared_context')) {
+      let fallbackQuery = supabase
+        .from('memories')
+        .select(baseMemoryColumns)
+        .is('deleted_at', null)
+        .order('occurred_at', { ascending: false })
+
+      if (cursor) {
+        fallbackQuery = fallbackQuery.lt('occurred_at', cursor)
+      }
+      fallbackQuery = fallbackQuery.limit(safeLimit + 1)
+
+      const fallback = await fallbackQuery
+      if (fallback.error) throw new Error(fallback.error.message)
+      rawData = fallback.data
+    } else {
+      throw new Error(error.message)
+    }
+  } else {
+    rawData = data
+  }
+
+  const rows = (rawData || []) as any[]
+  const hasMore = rows.length > safeLimit
+  const pageRows = hasMore ? rows.slice(0, safeLimit) : rows
+
+  // Deduplicate secondary clones if parent is present in this page
+  const parentMemoryIds = new Set(pageRows.map((r: any) => r.id))
+  const filteredRows = pageRows.filter((r: any) => {
+    if (r.source_memory_id && parentMemoryIds.has(r.source_memory_id)) {
+      return false
+    }
+    return true
+  })
+
+  const memories = await rowsToMemories(supabase, filteredRows as MemoryRow[], user.id)
+  const nextCursor = hasMore && pageRows.length > 0
+    ? (pageRows[pageRows.length - 1] as any).occurred_at || `${pageRows[pageRows.length - 1].occurred_on}T${pageRows[pageRows.length - 1].occurred_time || '12:00:00'}Z`
+    : null
+
+  return {
+    memories,
+    nextCursor,
+    hasMore,
+  }
+}
+
 export async function searchMemoriesAction(query: string, limit = 10): Promise<SemanticMemoryResult[]> {
   const supabase = await createClient()
   const {

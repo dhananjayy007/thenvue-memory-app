@@ -1,12 +1,14 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TextInput,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
+  Platform,
 } from 'react-native'
 import { Search, ArrowLeft } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
@@ -21,6 +23,8 @@ export function MemoriesScreen({
   colors,
   onBack,
   onSelectMemory,
+  onEndReached,
+  isLoadingMore = false,
 }: {
   memories: Memory[]
   colors: ThemeColors
@@ -28,6 +32,8 @@ export function MemoriesScreen({
   onToggleTheme?: () => void
   onBack?: () => void
   onSelectMemory: (m: Memory) => void
+  onEndReached?: () => void
+  isLoadingMore?: boolean
 }) {
   const [query, setQuery] = useState('')
 
@@ -50,6 +56,45 @@ export function MemoriesScreen({
     })
   }, [memories, query])
 
+  const renderHeader = useCallback(() => (
+    <View style={styles.searchSection}>
+      <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Search size={16} color={colors.textMuted} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Search words, people, places, topics..."
+          placeholderTextColor={colors.textMuted}
+          value={query}
+          onChangeText={setQuery}
+        />
+      </View>
+    </View>
+  ), [colors, query])
+
+  const renderItem = useCallback(({ item }: { item: Memory }) => (
+    <View style={{ width: cardWidth, margin: 4 }}>
+      <MemoryCard memory={item} colors={colors} onPress={() => onSelectMemory(item)} />
+    </View>
+  ), [colors, onSelectMemory])
+
+  const renderFooter = useCallback(() => {
+    if (!isLoadingMore) return null
+    return (
+      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+        <ActivityIndicator size="small" color={colors.accent} />
+      </View>
+    )
+  }, [isLoadingMore, colors])
+
+  const renderEmpty = useCallback(() => (
+    <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>No memories found</Text>
+      <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+        {query ? `We couldn't find any memories matching "${query}".` : 'Capture your first memory to begin.'}
+      </Text>
+    </View>
+  ), [colors, query])
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header with Back button */}
@@ -67,37 +112,24 @@ export function MemoriesScreen({
         </View>
       </View>
 
-      <View style={styles.searchSection}>
-        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Search size={16} color={colors.textMuted} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search words, people, places, topics..."
-            placeholderTextColor={colors.textMuted}
-            value={query}
-            onChangeText={setQuery}
-          />
-        </View>
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {filteredMemories.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No memories found</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              {query ? `We couldn't find any memories matching "${query}".` : 'Capture your first memory to begin.'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.grid}>
-            {filteredMemories.map((m) => (
-              <View key={m.id} style={{ width: cardWidth }}>
-                <MemoryCard memory={m} colors={colors} onPress={() => onSelectMemory(m)} />
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+      <FlatList
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        data={filteredMemories}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        renderItem={renderItem}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderFooter}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.5}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   )
 }

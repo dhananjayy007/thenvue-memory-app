@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TextInput,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from 'react-native'
 import { Search } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
@@ -17,10 +18,14 @@ export function TimelineScreen({
   memories = [],
   colors,
   onSelectMemory,
+  onEndReached,
+  isLoadingMore = false,
 }: {
   memories: Memory[]
   colors: ThemeColors
   onSelectMemory: (m: Memory) => void
+  onEndReached?: () => void
+  isLoadingMore?: boolean
 }) {
   const [filter, setFilter] = useState<'all' | 'photos' | 'places' | 'people'>('all')
   const [search, setSearch] = useState('')
@@ -61,12 +66,8 @@ export function TimelineScreen({
     return Array.from(map.entries())
   }, [filtered])
 
-  return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
+  const renderHeader = useCallback(() => (
+    <View>
       {/* Eyebrow & Title */}
       <View style={styles.heading}>
         <Text style={[styles.eyebrow, { color: colors.accent }]}>YOUR LIFE, IN ORDER</Text>
@@ -114,27 +115,58 @@ export function TimelineScreen({
           )
         })}
       </View>
+    </View>
+  ), [colors, search, filter])
 
-      {/* Timeline Groups */}
-      {grouped.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: colors.textMuted }]}>No memories found</Text>
+  const renderGroup = useCallback(({ item }: { item: [string, Memory[]] }) => {
+    const [monthYear, monthMems] = item
+    return (
+      <View style={styles.monthSection}>
+        <Text style={[styles.monthTitle, { color: colors.text, borderBottomColor: colors.border }]}>
+          {monthYear}
+        </Text>
+        <View style={styles.monthList}>
+          {monthMems.map((m) => (
+            <MemoryRow key={m.id} memory={m} colors={colors} onPress={() => onSelectMemory(m)} />
+          ))}
         </View>
-      ) : (
-        grouped.map(([monthYear, monthMems]) => (
-          <View key={monthYear} style={styles.monthSection}>
-            <Text style={[styles.monthTitle, { color: colors.text, borderBottomColor: colors.border }]}>
-              {monthYear}
-            </Text>
-            <View style={styles.monthList}>
-              {monthMems.map((m) => (
-                <MemoryRow key={m.id} memory={m} colors={colors} onPress={() => onSelectMemory(m)} />
-              ))}
-            </View>
-          </View>
-        ))
-      )}
-    </ScrollView>
+      </View>
+    )
+  }, [colors, onSelectMemory])
+
+  const renderFooter = useCallback(() => {
+    if (!isLoadingMore) return null
+    return (
+      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+        <ActivityIndicator size="small" color={colors.accent} />
+      </View>
+    )
+  }, [isLoadingMore, colors])
+
+  const renderEmpty = useCallback(() => (
+    <View style={styles.empty}>
+      <Text style={[styles.emptyText, { color: colors.textMuted }]}>No memories found</Text>
+    </View>
+  ), [colors])
+
+  return (
+    <FlatList
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.contentContainer}
+      data={grouped}
+      keyExtractor={(item) => item[0]}
+      renderItem={renderGroup}
+      ListHeaderComponent={renderHeader}
+      ListEmptyComponent={renderEmpty}
+      ListFooterComponent={renderFooter}
+      onEndReached={onEndReached}
+      onEndReachedThreshold={0.5}
+      initialNumToRender={8}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      removeClippedSubviews={Platform.OS !== 'web'}
+      showsVerticalScrollIndicator={false}
+    />
   )
 }
 

@@ -186,6 +186,170 @@ export async function fetchMemories(): Promise<Memory[]> {
   return formatted
 }
 
+export async function fetchMemoriesPage(
+  limit: number = 20,
+  cursor?: string
+): Promise<{ memories: Memory[]; nextCursor: string | null; hasMore: boolean }> {
+  const { data: { user } } = await supabase.auth.getUser()
+  const currentUserId = user?.id
+
+  const safeLimit = Math.min(Math.max(limit, 1), 100)
+
+  let query = supabase
+    .from('memories')
+    .select(`
+      id,
+      user_id,
+      title,
+      body,
+      occurred_at,
+      occurred_on,
+      occurred_time,
+      place,
+      people,
+      mood,
+      topics,
+      summary,
+      memory_type,
+      source_memory_id,
+      shared_context,
+      media (
+        id,
+        storage_path,
+        media_type,
+        file_name,
+        file_size,
+        perspective_id,
+        created_at
+      )
+    `)
+    .is('deleted_at', null)
+    .order('occurred_at', { ascending: false })
+
+  if (cursor) {
+    query = query.lt('occurred_at', cursor)
+  }
+
+  query = query.limit(safeLimit + 1)
+
+  let rawMemories: any = null
+  const { data, error: mainError } = await query
+
+  let error = mainError
+  if (error && (error.message.includes('perspective_id') || error.message.includes('source_memory_id') || error.message.includes('shared_context'))) {
+    let fallbackQuery = supabase
+      .from('memories')
+      .select(`
+        id,
+        user_id,
+        title,
+        body,
+        occurred_at,
+        occurred_on,
+        occurred_time,
+        place,
+        people,
+        mood,
+        topics,
+        summary,
+        memory_type,
+        media (
+          id,
+          storage_path,
+          media_type,
+          file_name,
+          file_size,
+          created_at
+        )
+      `)
+      .is('deleted_at', null)
+      .order('occurred_at', { ascending: false })
+
+    if (cursor) {
+      fallbackQuery = fallbackQuery.lt('occurred_at', cursor)
+    }
+    fallbackQuery = fallbackQuery.limit(safeLimit + 1)
+
+    const fallback = await fallbackQuery
+    rawMemories = fallback.data
+    error = fallback.error
+  } else {
+    rawMemories = data
+  }
+
+  if (error) throw error
+  if (!rawMemories) return { memories: [], nextCursor: null, hasMore: false }
+
+  const rows = rawMemories as any[]
+  const hasMore = rows.length > safeLimit
+  const pageRows = hasMore ? rows.slice(0, safeLimit) : rows
+
+  // Deduplicate: Filter out secondary cloned copies if the parent shared memory is present in page
+  const parentIds = new Set(pageRows.map((r: any) => r.id))
+  const filteredRawMemories = pageRows.filter((r: any) => {
+    if (r.source_memory_id && parentIds.has(r.source_memory_id)) {
+      return false
+    }
+    return true
+  })
+
+  // Batch fetch signed URLs
+  const allMedia = filteredRawMemories.flatMap((m: any) => (m.media as any[]) || [])
+  const signedUrlMap = await getBatchSignedMediaUrls(allMedia)
+
+  const formatted: Memory[] = []
+
+  for (const m of filteredRawMemories) {
+    const rawMedia = (m.media as any[]) || []
+    const mediaAssets: MediaAsset[] = rawMedia.flatMap((item: any) => {
+      const url = signedUrlMap.get(item.storage_path) || ''
+      return url
+        ? [
+            {
+              id: item.id,
+              url,
+              storagePath: item.storage_path,
+              mediaType: item.media_type as 'image' | 'audio' | 'document',
+              fileName: item.file_name,
+              fileSize: Number(item.file_size || 0),
+              perspectiveId: item.perspective_id,
+              createdAt: item.created_at,
+            },
+          ]
+        : []
+    })
+
+    formatted.push({
+      id: m.id,
+      userId: m.user_id,
+      title: m.title || 'Untitled Memory',
+      text: m.body,
+      date: m.occurred_on,
+      time: (m.occurred_time || '12:00:00').slice(0, 5),
+      place: m.place || '',
+      people: m.people || [],
+      mood: m.mood || 'calm',
+      topics: m.topics || [],
+      summary: m.summary || '',
+      memoryType: m.memory_type || 'moment',
+      sourceMemoryId: m.source_memory_id,
+      sharedContext: m.shared_context,
+      isOwner: currentUserId ? m.user_id === currentUserId : true,
+      media: mediaAssets,
+    })
+  }
+
+  const nextCursor = hasMore && pageRows.length > 0
+    ? (pageRows[pageRows.length - 1] as any).occurred_at || `${pageRows[pageRows.length - 1].occurred_on}T${pageRows[pageRows.length - 1].occurred_time || '12:00:00'}Z`
+    : null
+
+  return {
+    memories: formatted,
+    nextCursor,
+    hasMore,
+  }
+}
+
 export async function createMemory(
   text: string,
   photos: { base64: string; fileName: string; fileSize: number }[],

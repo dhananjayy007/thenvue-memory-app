@@ -21,6 +21,7 @@ import { darkColors, lightColors } from './src/theme/colors'
 import type { Memory, MemoryPerspective } from './src/types/memory'
 import {
   fetchMemories,
+  fetchMemoriesPage,
   createMemory,
   enrichMemoryMobile,
   createVoiceMemory,
@@ -75,6 +76,9 @@ function MainContent() {
 
   const [currentTab, setCurrentTab] = useState<'home' | 'timeline' | 'memories' | 'ask' | 'people' | 'places' | 'you'>('home')
   const [memories, setMemories] = useState<Memory[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState<boolean>(true)
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
   const [refreshing, setRefreshing] = useState(false)
 
   // Modals
@@ -245,23 +249,49 @@ function MainContent() {
     }
   }, [memories.length, loadNotificationCount])
 
-  // Load Memories
+  // Load Memories (Page 1 - Fast initial load <500ms)
   const loadMemories = useCallback(async () => {
     if (!session) return
     try {
-      const data = await fetchMemories()
-      setMemories(data)
+      const pageResult = await fetchMemoriesPage(20)
+      setMemories(pageResult.memories)
+      setNextCursor(pageResult.nextCursor)
+      setHasMore(pageResult.hasMore)
       loadNotificationCount()
     } catch (err) {
       console.error('Failed to load memories:', err)
     }
   }, [session, loadNotificationCount])
 
+  // Progressive Load More for Infinite Scroll
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore || !nextCursor || !session) return
+    setIsLoadingMore(true)
+    try {
+      const pageResult = await fetchMemoriesPage(20, nextCursor)
+      if (pageResult.memories.length > 0) {
+        setMemories((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id))
+          const newItems = pageResult.memories.filter((m) => !existingIds.has(m.id))
+          return [...prev, ...newItems]
+        })
+      }
+      setNextCursor(pageResult.nextCursor)
+      setHasMore(pageResult.hasMore)
+    } catch (err) {
+      console.error('Failed to load more memories:', err)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [isLoadingMore, hasMore, nextCursor, session])
+
   useEffect(() => {
     if (session) {
       loadMemories()
     } else {
       setMemories([])
+      setNextCursor(null)
+      setHasMore(false)
     }
   }, [session, loadMemories])
 
@@ -501,6 +531,8 @@ function MainContent() {
               colors={colors}
               onBack={() => setCurrentTab('home')}
               onSelectMemory={handleSelectMemoryDetail}
+              onEndReached={handleLoadMore}
+              isLoadingMore={isLoadingMore}
             />
           )}
 
@@ -509,6 +541,8 @@ function MainContent() {
               memories={memories}
               colors={colors}
               onSelectMemory={handleSelectMemoryDetail}
+              onEndReached={handleLoadMore}
+              isLoadingMore={isLoadingMore}
             />
           )}
 

@@ -23,14 +23,41 @@ export async function GET(request: NextRequest) {
   const auth = await authenticatedClient(request)
   if (auth instanceof NextResponse) return auth
 
-  const { data, error } = await auth.client
+  const { searchParams } = new URL(request.url)
+  const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 20, 1), 100)
+  const cursor = searchParams.get('cursor') // format: timestamp or offset
+
+  let query = auth.client
     .from('memories')
     .select(memoryColumns)
     .is('deleted_at', null)
     .order('occurred_at', { ascending: false })
 
+  if (cursor) {
+    // If cursor is a valid ISO timestamp or date
+    query = query.lt('occurred_at', cursor)
+  }
+
+  // Fetch limit + 1 to detect if there is a next page
+  query = query.limit(limit + 1)
+
+  const { data, error } = await query
+
   if (error) return serverError(error.message)
-  return NextResponse.json({ memories: await rowsToMemories(auth.client, data as MemoryRow[]) })
+
+  const rows = (data as MemoryRow[]) || []
+  const hasMore = rows.length > limit
+  const pageRows = hasMore ? rows.slice(0, limit) : rows
+  const memories = await rowsToMemories(auth.client, pageRows)
+  const nextCursor = hasMore && pageRows.length > 0
+    ? (pageRows[pageRows.length - 1] as any).occurred_at || `${pageRows[pageRows.length - 1].occurred_on}T${pageRows[pageRows.length - 1].occurred_time || '12:00:00'}Z`
+    : null
+
+  return NextResponse.json({
+    memories,
+    nextCursor,
+    hasMore,
+  })
 }
 
 export async function POST(request: NextRequest) {

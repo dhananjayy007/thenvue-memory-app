@@ -39,7 +39,7 @@ export function MemoryRow({
             <MapPin size={12} /> {memory.place} <i /> {memory.topics[0] ?? 'Uncategorized'}
           </small>
         </span>
-        {photo && <img src={photo.url} alt={photo.fileName} />}
+        {photo && <img src={photo.url} alt={photo.fileName} loading="lazy" decoding="async" />}
         {onAddPhoto && (
           <button
             type="button"

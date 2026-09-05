@@ -34,7 +34,7 @@ export function MemoryCard({
         }}
       >
         {photo ? (
-          <img src={photo.url} alt={photo.fileName || memory.title} />
+          <img src={photo.url} alt={photo.fileName || memory.title} loading="lazy" decoding="async" />
         ) : hasAudio ? (
           <div className="card-placeholder card-audio-placeholder">
             <div className="card-audio-visual">

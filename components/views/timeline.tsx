@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Search, Loader2 } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { PageIntro } from '@/components/shared/page-intro'
 import { MemoryRow } from '@/components/memory/memory-row'
@@ -12,14 +12,21 @@ export function Timeline({
   query,
   setQuery,
   onCapture,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: {
   memories: Memory[]
   onOpen: (m: Memory) => void
   query: string
   setQuery: (v: string) => void
   onCapture?: () => void
+  hasMore?: boolean
+  isLoadingMore?: boolean
+  onLoadMore?: () => void
 }) {
   const [filter, setFilter] = useState<'all' | 'photos' | 'places' | 'people'>('all')
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   const visibleMemories = useMemo(() => {
     let list = memories
@@ -45,6 +52,28 @@ export function Timeline({
     }
     return Array.from(monthSet).sort((a, b) => b.localeCompare(a))
   }, [visibleMemories])
+
+  // Infinite scroll intersection observer
+  useEffect(() => {
+    if (!hasMore || !onLoadMore || isLoadingMore) return
+
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          onLoadMore()
+        }
+      },
+      { rootMargin: '300px' }
+    )
+
+    observer.observe(sentinel)
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasMore, onLoadMore, isLoadingMore])
 
   return (
     <div className="page">
@@ -110,23 +139,40 @@ export function Timeline({
           )}
         </div>
       ) : (
-        months.map((month) => (
-          <section className="timeline-month" key={month}>
-            <h2>
-              {new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(
-                new Date(`${month}-01T12:00:00`)
+        <>
+          {months.map((month) => (
+            <section className="timeline-month" key={month}>
+              <h2>
+                {new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(
+                  new Date(`${month}-01T12:00:00`)
+                )}
+              </h2>
+              <div>
+                {visibleMemories
+                  .filter((m) => m.date.startsWith(month))
+                  .map((m) => (
+                    <MemoryRow key={m.id} memory={m} onClick={() => onOpen(m)} />
+                  ))}
+              </div>
+            </section>
+          ))}
+
+          {/* Infinite Scroll Sentinel & Loader */}
+          {hasMore && (
+            <div ref={sentinelRef} className="py-6 flex items-center justify-center text-sm text-neutral-400 gap-2">
+              {isLoadingMore ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Loading earlier moments...</span>
+                </>
+              ) : (
+                <span className="opacity-0">Scroll for more</span>
               )}
-            </h2>
-            <div>
-              {visibleMemories
-                .filter((m) => m.date.startsWith(month))
-                .map((m) => (
-                  <MemoryRow key={m.id} memory={m} onClick={() => onOpen(m)} />
-                ))}
             </div>
-          </section>
-        ))
+          )}
+        </>
       )}
     </div>
   )
 }
+
