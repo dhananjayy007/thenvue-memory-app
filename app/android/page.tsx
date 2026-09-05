@@ -176,7 +176,7 @@ export default function AndroidDownloadPage() {
             <div className="android-feat-icon-wrap">
               <ShieldCheck size={20} />
             </div>
-            <h4 className="android-feat-title">Encrypted Storage</h4>
+            <h4 className="android-feat-title">Account Isolation</h4>
             <p className="android-feat-text">Your private memories stay strictly yours with row-level database security.</p>
           </div>
         </div>

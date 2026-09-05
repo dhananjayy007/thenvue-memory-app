@@ -2,39 +2,49 @@
 
 import { LandingNavbar } from '@/components/landing/navbar'
 import { LandingHero } from '@/components/landing/hero'
-import { LandingHowItWorks } from '@/components/landing/how-it-works'
-import { LandingBentoFeatures } from '@/components/landing/bento-features'
-import { LandingDemoSearchWidget } from '@/components/landing/demo-search-widget'
-import { LandingFounderStory } from '@/components/landing/founder-story'
-import { LandingDownloadFooter } from '@/components/landing/download-footer-banner'
+import { LandingEmotionalProblem } from '@/components/landing/emotional-problem'
+import { LandingAhaMoment } from '@/components/landing/aha-moment'
+import { LandingRediscoverSection } from '@/components/landing/rediscover-section'
+import { LandingCaptureSection } from '@/components/landing/capture-section'
+import { LandingConnectionSection } from '@/components/landing/connection-section'
+import { LandingPrivacySection } from '@/components/landing/privacy-section'
+import { LandingFinalCtaSection } from '@/components/landing/final-cta-section'
+import { LandingFooter } from '@/components/landing/footer'
 
 export function ThenvueLandingPage({ user }: { user?: boolean }) {
   return (
     <div className="landing-root-container">
-      {/* Sticky Frosted Header */}
+      {/* 1. Minimal Navigation */}
       <LandingNavbar user={user} />
 
-      {/* Main Sections */}
-      <main className="landing-main">
-        {/* Hero with Phone Mockup */}
+      <main className="landing-main-flow">
+        {/* 2. Hero: "Your life, remembered." */}
         <LandingHero user={user} />
 
-        {/* 3-Step Grid: How it works */}
-        <LandingHowItWorks />
+        {/* 3. Emotional Problem: "You won't remember this." */}
+        <LandingEmotionalProblem />
 
-        {/* Bento Grid: Feature Deep Dives */}
-        <LandingBentoFeatures />
+        {/* 4. The Aha Moment: "Ask your past anything." */}
+        <LandingAhaMoment />
 
-        {/* Interactive Try-The-Search Demo Widget */}
-        <LandingDemoSearchWidget />
+        {/* 5. Rediscover Section: "Find moments you forgot." */}
+        <LandingRediscoverSection />
+
+        {/* 6. Capture Section: "Don't wait until it's important." */}
+        <LandingCaptureSection />
+
+        {/* 7. Connection Section: "Your memories are connected." */}
+        <LandingConnectionSection />
+
+        {/* 8. Privacy: "Your memories aren't content." */}
+        <LandingPrivacySection />
+
+        {/* 9. Final CTA: "Start remembering." */}
+        <LandingFinalCtaSection user={user} />
       </main>
 
-      {/* Founder Story Section */}
-      <LandingFounderStory />
-
-      {/* Conversion Banner & Footer */}
-      <LandingDownloadFooter />
+      {/* 10. Clean Minimal Footer */}
+      <LandingFooter />
     </div>
   )
 }
-

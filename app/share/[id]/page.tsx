@@ -190,8 +190,8 @@ export default async function SharedMemoryPage({
             </div>
             <div className="share-bento-card">
               <ShieldCheck size={20} className="bento-card-icon" />
-              <h4>100% Private</h4>
-              <p>Your memories belong to you. Zero tracking, isolated encrypted data.</p>
+              <h4>Private by Design</h4>
+              <p>Your memories belong to you. Zero ads, isolated account data.</p>
             </div>
           </div>
 
@@ -208,7 +208,7 @@ export default async function SharedMemoryPage({
 
       {/* Footer */}
       <footer className="share-footer">
-        <p>© 2026 Thenvue Inc. All rights reserved.</p>
+        <p>© 2026 Thenvue. All rights reserved.</p>
       </footer>
     </div>
   )

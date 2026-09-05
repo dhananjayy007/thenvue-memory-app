@@ -2,268 +2,135 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import {
-  ArrowRight,
-  Camera,
-  MapPin,
-  Mic,
-  PenLine,
-  
-  Users,
-} from 'lucide-react'
-
+import { ArrowRight, MapPin, Users, Sparkles, ChevronDown } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 
-interface MockMemory {
+interface SampleMemory {
   id: string
+  date: string
   time: string
-  tag: string
-  text: string
-  location: string
-  person?: string
-  badge: string
-  aiReflection: string
-  secondaryTime: string
-  secondaryTag: string
-  secondaryText: string
+  title: string
+  place: string
+  person: string
+  category: string
+  thought: string
+  reflection: string
 }
 
-const DYNAMIC_ENTRIES: MockMemory[] = [
+const SAMPLE_MEMORIES: SampleMemory[] = [
   {
-    id: 'powai',
-    time: 'Today · 7:15 PM',
-    tag: 'Powai',
-    text: 'Evening walk near the lake with Aradhya after the gym. Discussed the new project plans over filter coffee.',
-    location: 'Hiranandani, Powai',
-    person: 'Aradhya',
-    badge: 'Fitness',
-    aiReflection: 'You were in Powai yesterday evening with Aradhya after working out at the gym.',
-    secondaryTime: 'Yesterday · 9:30 AM',
-    secondaryTag: 'Home',
-    secondaryText: 'Finished reading the first three chapters of the design history book before morning standup.',
+    id: 'coffee-maya',
+    date: 'August 24, 2026',
+    time: '7:15 PM',
+    title: 'Coffee after work with Maya',
+    place: 'Powai, Mumbai',
+    person: 'Maya',
+    category: 'Life',
+    thought: 'Caught up over pour-overs at the corner table. Talked about moving into our new studio and how fast the summer went.',
+    reflection: 'You met Maya in Powai on a late August evening to talk about your new studio plans.',
   },
   {
-    id: 'coffee',
-    time: 'Saturday · 11:30 AM',
-    tag: 'Coffee',
-    text: 'Saturday morning pour-over at Blue Tokai while sketching the mobile navigation flow and gesture physics.',
-    location: 'Blue Tokai Coffee',
-    person: 'Rohan',
-    badge: 'Design',
-    aiReflection: 'You visited Blue Tokai on Saturday to design the new gesture animations.',
-    secondaryTime: 'Friday · 6:45 PM',
-    secondaryTag: 'Studio',
-    secondaryText: 'Shipped the database schema updates and tested the new neural search query embedding pipeline.',
-  },
-  {
-    id: 'college',
-    time: 'May 20 · 11:45 PM',
-    tag: 'Milestone',
-    text: 'Late night dorm coding session with Vikram and Ananya for the hackathon final presentation.',
-    location: 'Hostel 4, Campus',
-    person: 'Vikram, Ananya',
-    badge: 'Hackathon',
-    aiReflection: 'You won 1st runner up at the college hackathon with Vikram and Ananya.',
-    secondaryTime: 'May 18 · 4:00 PM',
-    secondaryTag: 'Campus',
-    secondaryText: 'Finalized the audio waveform visualizer and rehearsed our 3-minute stage demo.',
+    id: 'kyoto-morning',
+    date: 'October 12, 2025',
+    time: '8:40 AM',
+    title: 'Rainy morning walk in Kyoto',
+    place: 'Gion, Kyoto',
+    person: 'Liam',
+    category: 'Travel',
+    thought: 'The streets were empty after the rainfall. Found a small cedar tea house playing quiet jazz on vinyl.',
+    reflection: 'You took an early morning walk with Liam in Kyoto right after the autumn rain.',
   },
 ]
 
 export function LandingHero({ user }: { user?: boolean }) {
-  const [activeEntryIndex, setActiveEntryIndex] = useState(0)
-  const [scrollY, setScrollY] = useState(0)
+  const [activeIdx, setActiveIdx] = useState(0)
+  const current = SAMPLE_MEMORIES[activeIdx]
 
-  // Dynamic continuous auto-cycle animation inside phone mockup
   useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveEntryIndex((prev) => (prev + 1) % DYNAMIC_ENTRIES.length)
-    }, 3800)
-    return () => clearInterval(timer)
+    const interval = setInterval(() => {
+      setActiveIdx((prev) => (prev + 1) % SAMPLE_MEMORIES.length)
+    }, 6000)
+    return () => clearInterval(interval)
   }, [])
-
-  // Scroll-linked parallax calculation for phone mockup
-  useEffect(() => {
-    let ticking = false
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setScrollY(window.scrollY)
-          ticking = false
-        })
-        ticking = true
-      }
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
-  // Parallax translation: moves slower than scroll to create depth (capped gracefully)
-  const parallaxTranslateY = Math.min(scrollY * 0.12, 80)
-  const currentMemory = DYNAMIC_ENTRIES[activeEntryIndex]
 
   return (
-    <section className="landing-hero-section">
-      {/* Background Radial Glow */}
-      <div className="landing-hero-glow" aria-hidden="true" />
+    <section className="landing-hero-container">
+      {/* Background ambient warmth */}
+      <div className="landing-ambient-glow" aria-hidden="true" />
 
-      <div className="landing-hero-content">
-        {/* Eyebrow */}
-        <div className="landing-eyebrow-pill">
-          <span className="landing-eyebrow-dot" />
-          YOUR PERSONAL MEMORY ARCHIVE
-        </div>
-
-        {/* Headline */}
-        <h1 className="landing-hero-headline">
-          A quiet place to capture, recall, and understand your life.
+      <div className="landing-hero-header-block">
+        <h1 className="landing-hero-title">
+          Your life, remembered.
         </h1>
-
-        {/* Subheadline */}
-        <p className="landing-hero-subhead">
-          Write, speak, or snap your daily moments. Thenvue connects your people, tags your places,
-          and lets you naturally ask questions about your past.
+        <p className="landing-hero-subtitle">
+          Capture the moments you don&apos;t want to lose. Find them again when you need them.
         </p>
 
-        {/* Direct Download Action CTAs */}
-        <div className="landing-hero-cta-group">
-          <Link href="/ios" className="landing-store-badge">
-            <div className="landing-icon-glow-wrap apple-glow">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 384 512"
-                fill="currentColor"
-                width="18"
-                height="18"
-                className="landing-store-icon text-white relative z-10"
-              >
-                <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
-              </svg>
-            </div>
-            <div className="landing-store-text">
-              <div className="landing-store-title-row">
-                <span className="landing-store-main-title">Download for iOS</span>
-              </div>
-            </div>
+        <div className="landing-hero-cta-row">
+          <Link
+            href={user ? '/app' : '/login'}
+            className="landing-hero-primary-cta"
+          >
+            <span>{user ? 'Go to your space' : 'Try Thenvue'}</span>
+            <ArrowRight size={15} />
           </Link>
-
-          <Link href="/android" className="landing-store-badge">
-            <div className="landing-icon-glow-wrap android-glow">
-              <svg
-                className="landing-store-icon"
-                viewBox="0 0 24 24"
-                width="19"
-                height="19"
-                fill="currentColor"
-              >
-                <path d="M3.609 1.814L13.792 12 3.61 22.186a1.996 1.996 0 0 1-.61-1.428V3.242c0-.55.228-1.049.609-1.428zm11.233 11.234l2.585 2.585-11.458 6.547 8.873-9.132zm0-2.096L5.969 1.82l11.458 6.547-2.585 2.585zm1.48 1.48l3.197-1.827c.883-.504.883-1.325 0-1.83l-3.197-1.827-2.18 2.18 2.18 2.18z" />
-              </svg>
-            </div>
-            <div className="landing-store-text">
-              <div className="landing-store-title-row">
-                <span className="landing-store-main-title">Download for Android</span>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        {/* Web App Action CTA in Orange Pill */}
-        <div className="landing-hero-secondary-link" style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <Link href={user ? '/app' : '/login'} className="landing-cta-pill" style={{ gap: '6px' }}>
-            <span>{user ? 'Go to Your Space' : 'Open Web App'}</span>
-            <ArrowRight size={14} />
-          </Link>
-
-          <div className="landing-privacy-trust-badge" style={{ marginTop: 0 }}>
-            <span>🔒 Private & Encrypted</span>
-          </div>
+          <a
+            href="#how-it-works"
+            className="landing-hero-secondary-cta"
+          >
+            <span>See how it works</span>
+            <ChevronDown size={14} />
+          </a>
         </div>
       </div>
 
-      {/* Hero Visual Mockup Container with Parallax & Hover Support */}
-      <div className="landing-hero-visual">
-        <div
-          className="landing-phone-mockup"
-          style={
-            {
-              '--parallax-offset': `${parallaxTranslateY}px`,
-            } as React.CSSProperties
-          }
-        >
-          {/* Phone Speaker Notch */}
-
-          <div className="landing-phone-notch">
-            <span className="landing-phone-camera" />
-          </div>
-
-          {/* App Header Inside Phone */}
-          <div className="landing-mockup-header">
-            <div>
-              <span className="landing-mockup-brand">Thenvue</span>
-              <p className="landing-mockup-greeting">Good evening, Dhananjay</p>
+      {/* Hero Visual: One calm, beautiful Thenvue product preview */}
+      <div className="landing-hero-visual-frame">
+        <div className="landing-product-preview-card">
+          {/* Top minimal header inside the product preview */}
+          <div className="landing-preview-topbar">
+            <div className="preview-topbar-left">
+              <span className="preview-app-name">Thenvue</span>
+              <span className="preview-demo-tag">Sample memory</span>
             </div>
-            <div className="landing-mockup-avatar">D</div>
-          </div>
-
-          {/* AI Search Bar Inside Phone */}
-          <div className="landing-mockup-search">
-            <CustomBrainIcon size={16} color="var(--accent)" />
-            <span>Ask anything about your past...</span>
-            <CustomBrainIcon size={13} className="landing-sparkle-icon" />
-          </div>
-
-          {/* Quick Capture Prompts */}
-          <div className="landing-mockup-quick-row">
-            <span className="landing-mockup-pill active">
-              <PenLine size={11} /> Write
-            </span>
-            <span className="landing-mockup-pill">
-              <Mic size={11} /> Voice note
-            </span>
-            <span className="landing-mockup-pill">
-              <Camera size={11} /> Photo
-            </span>
-          </div>
-
-          {/* Dynamic Auto-Cycling Timeline Card Preview */}
-          <div className="landing-mockup-timeline">
-            <div key={currentMemory.id} className="landing-mockup-card dynamic-fade-slide">
-              <div className="landing-mockup-card-header">
-                <span className="landing-mockup-time">{currentMemory.time}</span>
-                <span className="landing-mockup-tag">{currentMemory.tag}</span>
-              </div>
-              <strong className="landing-mockup-card-text">{currentMemory.text}</strong>
-              <div className="landing-mockup-meta">
-                <span>
-                  <MapPin size={10} /> {currentMemory.location}
-                </span>
-                {currentMemory.person && (
-                  <span>
-                    <Users size={10} /> {currentMemory.person}
-                  </span>
-                )}
-                <span className="landing-mockup-badge">{currentMemory.badge}</span>
-              </div>
-            </div>
-
-            <div className="landing-mockup-card secondary">
-              <div className="landing-mockup-card-header">
-                <span className="landing-mockup-time">{currentMemory.secondaryTime}</span>
-                <span className="landing-mockup-tag">{currentMemory.secondaryTag}</span>
-              </div>
-              <strong className="landing-mockup-card-text">
-                {currentMemory.secondaryText}
-              </strong>
+            <div className="preview-topbar-right">
+              <span className="preview-indicator-dot" />
+              <span className="preview-status-text">Private timeline</span>
             </div>
           </div>
 
-          {/* Floating AI Answer Pill with Dynamic Text */}
-          <div className="landing-floating-ai-card">
-            <div className="landing-floating-ai-header">
-              <CustomBrainIcon size={13} color="var(--accent)" />
-              <span>Grounded in timeline memory</span>
+          {/* Memory Card Body */}
+          <div className="landing-preview-memory" key={current.id}>
+            <div className="preview-memory-meta">
+              <span className="preview-memory-date">{current.date} · {current.time}</span>
+              <span className="preview-memory-tag">{current.category}</span>
             </div>
-            <p className="landing-floating-ai-text">&ldquo;{currentMemory.aiReflection}&rdquo;</p>
+
+            <h3 className="preview-memory-title">{current.title}</h3>
+            <p className="preview-memory-thought">{current.thought}</p>
+
+            <div className="preview-memory-footer">
+              <span className="preview-pill">
+                <MapPin size={11} />
+                <span>{current.place}</span>
+              </span>
+              <span className="preview-pill">
+                <Users size={11} />
+                <span>{current.person}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Ask Your Life Transition Overlay / Grounded Pill */}
+          <div className="landing-preview-ask-bar">
+            <div className="preview-ask-query">
+              <CustomBrainIcon size={14} className="preview-brain-icon" />
+              <span className="preview-ask-text">&ldquo;When was I in {current.place.split(',')[0]} with {current.person}?&rdquo;</span>
+            </div>
+            <div className="preview-ask-result">
+              <Sparkles size={12} className="preview-sparkle-icon" />
+              <p className="preview-reflection-text">&ldquo;{current.reflection}&rdquo;</p>
+            </div>
           </div>
         </div>
       </div>

@@ -179,7 +179,7 @@ export function OnboardingModal({ isOpen, onComplete }: OnboardingModalProps) {
           </div>
           <div className="onboarding-security-note">
             <ThenvueLogo size={18} />
-            <span>100% private, securely encrypted, and uniquely yours.</span>
+            <span>Private, isolated to your account, and uniquely yours.</span>
           </div>
         </div>
       ),

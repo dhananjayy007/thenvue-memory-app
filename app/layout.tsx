@@ -3,8 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Thenvue — Never forget your life',
-  description: 'A quiet place to capture, recall, and understand your life.',
+  title: 'Thenvue — Your life, remembered.',
+  description: "Capture the moments you don't want to lose. Find, connect, and rediscover your memories with Thenvue.",
   generator: 'Thenvue',
   manifest: '/site.webmanifest',
   icons: {
