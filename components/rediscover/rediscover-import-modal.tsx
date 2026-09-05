@@ -52,7 +52,7 @@ export function RediscoverImportModal({
   onClose: () => void
   onMemoryCreated: (memory: Memory) => void
 }) {
-  const [quota, setQuota] = useState<PastImportQuota>({ used: 0, limit: 100, remaining: 100 })
+  const [quota, setQuota] = useState<PastImportQuota>({ used: 0, limit: 50, remaining: 50 })
   const [stage, setStage] = useState<'select' | 'processing' | 'review'>('select')
   const [selectedFiles, setSelectedFiles] = useState<FilePreview[]>([])
   const [processingStatus, setProcessingStatus] = useState<string>('Preparing past photos...')
@@ -86,13 +86,13 @@ export function RediscoverImportModal({
 
     const maxAllowed = quota.remaining
     if (maxAllowed <= 0) {
-      setErrorMessage("You've reached your 100 past-photo limit.")
+      setErrorMessage("You've reached your 50 past-photo limit.")
       return
     }
 
     const fileArray = Array.from(files)
     if (fileArray.length > maxAllowed) {
-      setErrorMessage(`You can select up to ${maxAllowed} more past photos (quota: ${quota.used}/100).`)
+      setErrorMessage(`You can select up to ${maxAllowed} more past photos (quota: ${quota.used}/50).`)
     }
 
     const allowedFiles = fileArray.slice(0, maxAllowed)

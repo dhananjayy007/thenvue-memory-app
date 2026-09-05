@@ -1862,7 +1862,7 @@ export async function getPastImportQuotaAction(): Promise<PastImportQuota> {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { used: 0, limit: 100, remaining: 100 }
+  if (!user) return { used: 0, limit: 50, remaining: 50 }
 
   const { data, error } = await supabase.rpc('get_user_past_import_quota', {
     p_user_id: user.id,
@@ -1871,8 +1871,8 @@ export async function getPastImportQuotaAction(): Promise<PastImportQuota> {
   if (!error && data) {
     return {
       used: Number(data.used || 0),
-      limit: Number(data.limit || 100),
-      remaining: Number(data.remaining || 100),
+      limit: Number(data.limit || 50),
+      remaining: Number(data.remaining || 50),
     }
   }
 
@@ -1886,8 +1886,8 @@ export async function getPastImportQuotaAction(): Promise<PastImportQuota> {
   const used = count || 0
   return {
     used,
-    limit: 100,
-    remaining: Math.max(0, 100 - used),
+    limit: 50,
+    remaining: Math.max(0, 50 - used),
   }
 }
 
@@ -1903,7 +1903,7 @@ export async function createImportJobAction(totalAssets: number): Promise<{ jobI
   // 1. Strict Server-Side Quota Enforcement
   const quota = await getPastImportQuotaAction()
   if (totalAssets > quota.remaining) {
-    throw new Error(`You have ${quota.remaining} past photo slot${quota.remaining === 1 ? '' : 's'} remaining (max 100). Please select up to ${quota.remaining} photos.`)
+    throw new Error(`You have ${quota.remaining} past photo slot${quota.remaining === 1 ? '' : 's'} remaining (max 50). Please select up to ${quota.remaining} photos.`)
   }
 
   // 2. Create Job Record

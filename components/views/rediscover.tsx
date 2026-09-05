@@ -17,7 +17,7 @@ export function Rediscover({
   onStartImport: () => void
   quotaRefreshTrigger?: number
 }) {
-  const [quota, setQuota] = useState<PastImportQuota>({ used: 0, limit: 100, remaining: 100 })
+  const [quota, setQuota] = useState<PastImportQuota>({ used: 0, limit: 50, remaining: 50 })
   const [rediscoveredMemories, setRediscoveredMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -59,7 +59,7 @@ export function Rediscover({
           disabled={quota.remaining === 0}
         >
           <Plus size={16} />
-          <span>{quota.remaining === 0 ? 'Quota Reached (100/100)' : 'Add Photos'}</span>
+          <span>{quota.remaining === 0 ? 'Quota Reached (50/50)' : 'Add Photos'}</span>
         </button>
       </div>
 
@@ -81,7 +81,7 @@ export function Rediscover({
             <div>
               <h3>Past Photos Quota</h3>
               <p className="quota-explanation">
-                You can import up to 100 past photos into Thenvue. Normal present-day memories are always unlimited.
+                You can import up to 50 past photos into Thenvue. Normal present-day memories are always unlimited.
               </p>
             </div>
           </div>
@@ -108,7 +108,7 @@ export function Rediscover({
             </span>
           ) : (
             <span className="quota-exhausted-text">
-              <AlertCircle size={14} /> You've reached your 100 past-photo limit. Deleting an imported past photo will free up slots.
+              <AlertCircle size={14} /> You've reached your 50 past-photo limit. Deleting an imported past photo will free up slots.
             </span>
           )}
           <span className="quota-active-note">Active quota: deletes restore slots</span>

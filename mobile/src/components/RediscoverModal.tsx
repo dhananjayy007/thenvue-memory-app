@@ -46,7 +46,7 @@ export function RediscoverModal({
   onClose: () => void
   onMemoryCreated: (memory: Memory) => void
 }) {
-  const [quota, setQuota] = useState<PastImportQuota>({ used: 0, limit: 100, remaining: 100 })
+  const [quota, setQuota] = useState<PastImportQuota>({ used: 0, limit: 50, remaining: 50 })
   const [stage, setStage] = useState<'select' | 'processing' | 'review'>('select')
   const [selectedPhotos, setSelectedPhotos] = useState<
     { uri: string; fileName: string; fileSize: number }[]
@@ -77,7 +77,7 @@ export function RediscoverModal({
   const handlePickPhotos = async () => {
     setErrorMsg(null)
     if (quota.remaining <= 0) {
-      setErrorMsg("You've reached your 100 past-photo limit.")
+      setErrorMsg("You've reached your 50 past-photo limit.")
       return
     }
 
@@ -244,7 +244,7 @@ export function RediscoverModal({
                 <Text style={styles.quotaNote}>
                   {quota.remaining > 0
                     ? `✨ ${quota.remaining} slots remaining · Normal memories are unlimited.`
-                    : "⚠️ 100/100 limit reached. Deleting past imports frees slots."}
+                    : "⚠️ 50/50 limit reached. Deleting past imports frees slots."}
                 </Text>
               </View>
 

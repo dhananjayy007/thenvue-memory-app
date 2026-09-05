@@ -71,7 +71,7 @@ create index if not exists imported_assets_cluster_idx on public.imported_assets
 create index if not exists media_source_type_idx on public.media (user_id, source_type);
 
 -- ==========================================================================
--- Server-Side Atomic Quota Enforcement Function (100 Active Past-Import Photos)
+-- Server-Side Atomic Quota Enforcement Function (50 Active Past-Import Photos)
 -- ==========================================================================
 
 create or replace function public.get_user_past_import_quota(p_user_id uuid)
@@ -82,7 +82,7 @@ set search_path = ''
 as $$
 declare
   v_used integer;
-  v_limit constant integer := 100;
+  v_limit constant integer := 50;
   v_remaining integer;
 begin
   -- Count active past import assets (either in imported_assets table or active media with past_import)
