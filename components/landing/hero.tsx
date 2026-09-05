@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowRight, MapPin, Users, Sparkles, ChevronDown } from 'lucide-react'
+import { ArrowRight, MapPin, Users, Sparkles, ChevronDown, Smartphone, Monitor } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 
 interface SampleMemory {
@@ -81,6 +81,25 @@ export function LandingHero({ user }: { user?: boolean }) {
             <span>See how it works</span>
             <ChevronDown size={14} />
           </a>
+        </div>
+
+        {/* Platform Availability Options */}
+        <div className="landing-platforms-row" style={{ justifyContent: 'center', marginTop: 24 }}>
+          <span className="platform-label">Available on:</span>
+          <div className="platform-pills">
+            <Link href={user ? '/app' : '/login'} className="platform-pill">
+              <Monitor size={12} />
+              <span>Web</span>
+            </Link>
+            <Link href="/ios" className="platform-pill">
+              <Smartphone size={12} />
+              <span>iOS</span>
+            </Link>
+            <Link href="/android" className="platform-pill">
+              <Smartphone size={12} />
+              <span>Android</span>
+            </Link>
+          </div>
         </div>
       </div>
 
