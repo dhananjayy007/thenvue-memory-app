@@ -153,10 +153,12 @@ export function LandingAhaMoment() {
   return (
     <section id="how-it-works" className="landing-aha-section">
       <div className="landing-aha-header">
-        <span className="landing-quiet-eyebrow">The Magic of Recall</span>
-        <h2 className="landing-aha-headline">Ask your past anything.</h2>
+        <span className="landing-quiet-eyebrow">Ask Your Life</span>
+        <h2 className="landing-aha-headline">
+          Instead of searching through your life, ask about it.
+        </h2>
         <p className="landing-aha-subhead">
-          Thenvue connects the moments, people, places, and thoughts you&apos;ve saved so you can find the story behind them.
+          Ask questions in your own words. Thenvue retrieves your saved memories to build a grounded answer.
         </p>
       </div>
 
@@ -263,6 +265,12 @@ export function LandingAhaMoment() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: 24 }}>
+              <a href="/ai-memory-search" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+                Learn how AI memory search works →
+              </a>
             </div>
           </div>
         )}

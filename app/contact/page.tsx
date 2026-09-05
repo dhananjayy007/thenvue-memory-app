@@ -15,6 +15,20 @@ export const metadata: Metadata = {
   },
 }
 
+const contactJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Thenvue',
+  url: 'https://thenvue.com',
+  email: 'thenvue@gmail.com',
+  contactPoint: {
+    '@type': 'ContactPoint',
+    email: 'thenvue@gmail.com',
+    contactType: 'customer support',
+    availableLanguage: ['English'],
+  },
+}
+
 export default async function ContactPage() {
   const supabase = await createClient()
   const {
@@ -23,6 +37,10 @@ export default async function ContactPage() {
 
   return (
     <div className="landing-root-container">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(contactJsonLd) }}
+      />
       <LandingNavbar user={Boolean(user)} />
 
       <main className="trust-page-container contact-page-layout">

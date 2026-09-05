@@ -33,10 +33,10 @@ export function LandingRediscoverSection() {
   return (
     <section className="landing-rediscover-section">
       <div className="landing-rediscover-header">
-        <span className="landing-quiet-eyebrow">Gentle Surfacing</span>
-        <h2 className="landing-rediscover-headline">Find moments you forgot.</h2>
+        <span className="landing-quiet-eyebrow">Past Photo Import</span>
+        <h2 className="landing-rediscover-headline">Reconstruct your past from your photos.</h2>
         <p className="landing-rediscover-subhead">
-          Some moments disappear into your camera roll. Thenvue gives them a way back.
+          Import photos with their original capture dates. Thenvue clusters moments into memories on your historical timeline.
         </p>
       </div>
 

@@ -43,6 +43,15 @@ export function LandingPrivacySection() {
           )
         })}
       </div>
+
+      <div style={{ textAlign: 'center', marginTop: 28, display: 'flex', justifyContent: 'center', gap: 20 }}>
+        <a href="/privacy" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+          Read our Privacy Policy →
+        </a>
+        <a href="/ai-data" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+          AI & Data Transparency →
+        </a>
+      </div>
     </section>
   )
 }

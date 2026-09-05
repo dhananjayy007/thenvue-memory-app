@@ -3,9 +3,53 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Thenvue — Your life, remembered.',
-  description: "Capture the moments you don't want to lose. Find, connect, and rediscover your memories with Thenvue.",
+  metadataBase: new URL('https://thenvue.com'),
+  title: {
+    default: 'Thenvue — Personal Memory & AI Journal',
+    template: '%s | Thenvue',
+  },
+  description:
+    'Capture moments, photos, and thoughts. Search your memories, rediscover forgotten moments, and ask AI about your life with Thenvue.',
   generator: 'Thenvue',
+  applicationName: 'Thenvue',
+  alternates: {
+    canonical: '/',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    title: 'Thenvue — Personal Memory & AI Journal',
+    description:
+      'Capture moments, photos, and thoughts. Search your memories, rediscover forgotten moments, and ask AI about your life with Thenvue.',
+    url: 'https://thenvue.com',
+    siteName: 'Thenvue',
+    locale: 'en_US',
+    type: 'website',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Thenvue — Your life, remembered.',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Thenvue — Personal Memory & AI Journal',
+    description:
+      'Capture moments, photos, and thoughts. Search your memories, rediscover forgotten moments, and ask AI about your life with Thenvue.',
+    images: ['/og-image.png'],
+  },
   manifest: '/site.webmanifest',
   icons: {
     icon: [

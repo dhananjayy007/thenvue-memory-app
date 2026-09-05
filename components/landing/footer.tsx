@@ -23,9 +23,18 @@ export function LandingFooter() {
         {/* Product Column */}
         <div className="landing-footer-col">
           <span className="footer-col-title">Product</span>
-          <a href="/#how-it-works" className="landing-footer-link">
-            How it works
-          </a>
+          <Link href="/voice-journal" className="landing-footer-link">
+            Voice Journal
+          </Link>
+          <Link href="/ai-memory-search" className="landing-footer-link">
+            AI Memory Search
+          </Link>
+          <Link href="/android" className="landing-footer-link">
+            Android APK
+          </Link>
+          <Link href="/ios" className="landing-footer-link">
+            iOS Waitlist
+          </Link>
           <Link href="/help" className="landing-footer-link">
             Help & Support
           </Link>

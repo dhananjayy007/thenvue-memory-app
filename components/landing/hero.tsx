@@ -63,7 +63,7 @@ export function LandingHero({ user }: { user?: boolean }) {
           Your life, remembered.
         </h1>
         <p className="landing-hero-subtitle">
-          Capture the moments you don&apos;t want to lose. Find them again when you need them.
+          Someone who knows your past, and helps you find the parts of your life you lost along the way.
         </p>
 
         <div className="landing-hero-cta-row">

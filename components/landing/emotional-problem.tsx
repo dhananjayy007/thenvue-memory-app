@@ -6,17 +6,17 @@ export function LandingEmotionalProblem() {
   return (
     <section className="landing-emotional-section">
       <div className="landing-emotional-content">
-        <span className="landing-quiet-eyebrow">The quiet passage of time</span>
+        <span className="landing-quiet-eyebrow">The moments that disappear</span>
         <h2 className="landing-emotional-headline">
-          You won&apos;t remember this.
+          There are parts of your life you&apos;ve already forgotten.
         </h2>
 
         <div className="landing-emotional-copy-block">
-          <p className="landing-emotional-line">Not the coffee.</p>
-          <p className="landing-emotional-line">Not the conversation.</p>
-          <p className="landing-emotional-line">Not this random Tuesday.</p>
+          <p className="landing-emotional-line">Not the big milestones.</p>
+          <p className="landing-emotional-line">The small ones. A random afternoon. A conversation. A person. A feeling.</p>
+          <p className="landing-emotional-line">Things that mattered once, but slowly disappeared.</p>
           <p className="landing-emotional-punchline">
-            But someday, you&apos;ll wish you did.
+            You live your life once. But you don&apos;t have to lose it twice.
           </p>
         </div>
       </div>

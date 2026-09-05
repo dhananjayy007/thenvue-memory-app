@@ -7,9 +7,9 @@ export function LandingCaptureSection() {
     <section className="landing-capture-section">
       <div className="landing-capture-header">
         <span className="landing-quiet-eyebrow">Effortless Input</span>
-        <h2 className="landing-capture-headline">Don&apos;t wait until it&apos;s important.</h2>
+        <h2 className="landing-capture-headline">Capture first. Organize later.</h2>
         <p className="landing-capture-subhead">
-          A thought. A photo. A voice note. A moment.
+          A thought. A photo. A spoken reflection. Save it now, and let Thenvue remember where it fits into your life.
         </p>
       </div>
 
@@ -72,6 +72,12 @@ export function LandingCaptureSection() {
             </p>
           </div>
         </div>
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: 28 }}>
+        <a href="/voice-journal" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+          Explore the voice journal workflow →
+        </a>
       </div>
     </section>
   )
