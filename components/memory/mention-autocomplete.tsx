@@ -5,6 +5,8 @@ import { searchUsersAction } from '@/app/memories/actions'
 import type { UserSearchResult } from '@/types/memory'
 import { AtSign, User } from 'lucide-react'
 
+const localMentionCache = new Map<string, UserSearchResult[]>()
+
 export interface MentionAutocompleteProps {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   value: string
@@ -56,17 +58,27 @@ export function MentionAutocomplete({
     handleCheckMention()
   }, [value, textareaRef])
 
-  // Fetch users matching the query
+  // Fetch users matching the query with client-side cache and 300ms debounce
   useEffect(() => {
     if (!isOpen) return
 
     let isMounted = true
+    const normalized = query.trim().toLowerCase()
+
+    if (localMentionCache.has(normalized)) {
+      setUsers(localMentionCache.get(normalized)!)
+      setSelectedIndex(0)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
 
     const timer = setTimeout(async () => {
       try {
-        const results = await searchUsersAction(query)
+        const results = await searchUsersAction(normalized)
         if (isMounted) {
+          localMentionCache.set(normalized, results)
           setUsers(results)
           setSelectedIndex(0)
         }
@@ -76,7 +88,7 @@ export function MentionAutocomplete({
       } finally {
         if (isMounted) setLoading(false)
       }
-    }, 150)
+    }, 300)
 
     return () => {
       isMounted = false

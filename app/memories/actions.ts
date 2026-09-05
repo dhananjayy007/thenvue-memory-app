@@ -922,9 +922,9 @@ export async function resetOnboardingAction(): Promise<void> {
   revalidatePath('/')
 }
 
-// ----------------------------------------------------
-// Shared Memories & Multiple Perspectives Actions
-// ----------------------------------------------------
+// In-memory cache for user search (5 minute TTL)
+const userSearchCache = new Map<string, { timestamp: number; results: UserSearchResult[] }>()
+const USER_SEARCH_TTL = 5 * 60 * 1000
 
 export async function searchUsersAction(searchQuery: string): Promise<UserSearchResult[]> {
   const supabase = await createClient()
@@ -933,117 +933,83 @@ export async function searchUsersAction(searchQuery: string): Promise<UserSearch
   } = await supabase.auth.getUser()
   if (!user) return []
 
-  const query = (searchQuery || '').trim()
+  const query = (searchQuery || '').trim().toLowerCase()
+  const cacheKey = `${user.id}:${query}`
 
-  // 1. If NO search query is typed, only return users the current user previously tagged or interacted with
-  if (!query) {
-    try {
-      // Find co-participants from shared memories
+  const cached = userSearchCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < USER_SEARCH_TTL) {
+    return cached.results
+  }
+
+  try {
+    let results: UserSearchResult[] = []
+
+    if (!query) {
+      // Return co-participants from shared memories
       const { data: participantRows } = await supabase
         .from('memory_participants')
         .select('user_id, invited_by')
         .or(`user_id.eq.${user.id},invited_by.eq.${user.id}`)
-        .limit(30)
+        .limit(15)
 
-      const relatedUserIds = new Set<string>()
+      const relatedIds = new Set<string>()
       for (const row of participantRows || []) {
-        if (row.user_id && row.user_id !== user.id) relatedUserIds.add(row.user_id)
-        if (row.invited_by && row.invited_by !== user.id) relatedUserIds.add(row.invited_by)
+        if (row.user_id && row.user_id !== user.id) relatedIds.add(row.user_id)
+        if (row.invited_by && row.invited_by !== user.id) relatedIds.add(row.invited_by)
       }
 
-      // Also find names from 'people' tags in user's memories
-      const { data: memPeople } = await supabase
-        .from('memories')
-        .select('people')
-        .eq('user_id', user.id)
-        .is('deleted_at', null)
-        .limit(50)
+      if (relatedIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .in('id', Array.from(relatedIds))
+          .limit(10)
 
-      const taggedNames = new Set<string>()
-      for (const m of memPeople || []) {
-        if (Array.isArray(m.people)) {
-          for (const p of m.people) {
-            if (p && typeof p === 'string' && p.trim()) {
-              taggedNames.add(p.trim().toLowerCase())
-            }
-          }
-        }
-      }
-
-      // If no past connections, return empty list (don't dump random app users)
-      if (relatedUserIds.size === 0 && taggedNames.size === 0) {
-        return []
-      }
-
-      // Call search function or query profiles for these specific connections
-      const { data: rpcData } = await supabase.rpc('search_users_to_invite', {
-        search_query: '',
-      })
-
-      if (Array.isArray(rpcData)) {
-        const filtered = rpcData.filter((r: any) => {
-          const isRelatedId = relatedUserIds.has(r.id)
-          const nameLower = (r.display_name || '').toLowerCase()
-          const emailPrefix = (r.email || '').split('@')[0].toLowerCase()
-          const isTagged = taggedNames.has(nameLower) || taggedNames.has(emailPrefix)
-          return isRelatedId || isTagged
-        })
-
-        if (filtered.length > 0) {
-          return filtered.map((r: any) => ({
-            id: r.id,
-            displayName: r.display_name?.trim() || r.email?.split('@')[0] || 'Thenvue User',
-            email: r.email || '',
+        if (profiles) {
+          results = profiles.map((p) => ({
+            id: p.id,
+            displayName: p.display_name?.trim() || 'Friend',
+            email: '',
           }))
         }
       }
-    } catch {
-      // Fallback
+    } else {
+      // 1. Try search_users_to_invite RPC first for full name & email matching
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('search_users_to_invite', {
+        search_query: query,
+      })
+
+      if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+        results = rpcData.map((r: any) => ({
+          id: r.id,
+          displayName: r.display_name?.trim() || r.email?.split('@')[0] || 'Thenvue User',
+          email: r.email || '',
+        }))
+      } else {
+        // Direct search on profiles table by display_name
+        const { data: profiles, error: profileErr } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .neq('id', user.id)
+          .ilike('display_name', `%${query}%`)
+          .limit(10)
+
+        if (!profileErr && profiles && profiles.length > 0) {
+          results = profiles.map((p) => ({
+            id: p.id,
+            displayName: p.display_name?.trim() || 'Thenvue User',
+            email: '',
+          }))
+        }
+      }
     }
 
+    userSearchCache.set(cacheKey, { timestamp: Date.now(), results })
+    return results
+  } catch (err) {
+    console.error('searchUsersAction error:', err)
     return []
   }
-
-  // 2. When the user types a search query, search the entire user base for matching names or emails
-  try {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('search_users_to_invite', {
-      search_query: query,
-    })
-    if (!rpcError && Array.isArray(rpcData)) {
-      return rpcData.map((r: any) => ({
-        id: r.id,
-        displayName: r.display_name?.trim() || r.email?.split('@')[0] || 'Thenvue User',
-        email: r.email || '',
-      }))
-    }
-  } catch {
-    // Fallback below
-  }
-
-  // 3. Fallback to querying public.profiles table directly
-  try {
-    let queryBuilder = supabase
-      .from('profiles')
-      .select('id, display_name')
-      .neq('id', user.id)
-
-    if (query) {
-      queryBuilder = queryBuilder.ilike('display_name', `%${query}%`)
-    }
-
-    const { data: profiles, error: profileErr } = await queryBuilder.limit(15)
-    if (!profileErr && profiles && profiles.length > 0) {
-      return profiles.map((p) => ({
-        id: p.id,
-        displayName: p.display_name?.trim() || 'Thenvue User',
-        email: '',
-      }))
-    }
-  } catch {
-    // Return empty list
-  }
-
-  return []
 }
 
 export async function inviteParticipantsAction(
@@ -1214,23 +1180,11 @@ export async function addPerspectiveAction({
   // 2. Validate media
   const validatedMedia = validateMediaInputs(mediaInputs, user.id)
 
-  // 3. Run AI tagging and embeddings
-  const tags = await tagMemory(body)
-  const effectivePlace = place || tags.places[0] || memory.place || 'Home'
-  const effectivePeople = people.length > 0 ? people : tags.people
-  const effectiveMood = mood || tags.mood
+  const effectivePlace = place || memory.place || 'Home'
+  const effectivePeople = people
+  const effectiveMood = mood || 'calm'
 
-  const embedding = await embedMemorySafe({
-    text: body,
-    summary: tags.summary,
-    people: effectivePeople,
-    place: effectivePlace,
-    topics: tags.topics,
-    memoryType: tags.memoryType || 'Perspective',
-    mood: effectiveMood,
-  })
-
-  // 4. Insert memory perspective record
+  // 3. Insert memory perspective record immediately (<100ms)
   const { data: perspective, error: perspectiveError } = await supabase
     .from('memory_perspectives')
     .insert({
@@ -1239,19 +1193,19 @@ export async function addPerspectiveAction({
       body,
       place: effectivePlace,
       people: effectivePeople,
-      topics: tags.topics,
+      topics: ['perspective'],
       mood: effectiveMood,
-      summary: tags.summary,
-      memory_type: tags.memoryType || 'Perspective',
+      summary: '',
+      memory_type: 'Perspective',
       saved_to_personal_memory: saveToPersonalMemory,
-      embedding,
+      embedding: null,
     })
     .select()
     .single()
 
   if (perspectiveError) throw new Error(perspectiveError.message)
 
-  // 5. Insert perspective media records
+  // 4. Insert perspective media records
   if (validatedMedia.length > 0) {
     const { error: mediaErr } = await supabase.from('media').insert(
       validatedMedia.map((m) => ({
@@ -1267,10 +1221,9 @@ export async function addPerspectiveAction({
     if (mediaErr) console.error('Error inserting perspective media:', mediaErr)
   }
 
-  // 6. Handle "Save to My Memories"
+  // 5. Handle "Save to My Memories"
   let personalMemoryId: string | null = null
   if (saveToPersonalMemory) {
-    // Find memory owner name
     const { data: ownerProfile } = await supabase
       .from('profiles')
       .select('display_name')
@@ -1291,13 +1244,13 @@ export async function addPerspectiveAction({
         occurred_time: captureTime.time,
         place: effectivePlace,
         people: effectivePeople,
-        topics: tags.topics,
-        summary: tags.summary,
+        topics: ['perspective'],
+        summary: '',
         memory_type: 'Perspective',
         mood: effectiveMood,
         source_memory_id: memoryId,
         shared_context: `From a shared memory with ${ownerName}`,
-        embedding,
+        embedding: null,
       })
       .select('id')
       .single()
@@ -1309,7 +1262,6 @@ export async function addPerspectiveAction({
         .update({ personal_memory_id: personalMem.id })
         .eq('id', perspective.id)
 
-      // Also attach media references to personal memory
       if (validatedMedia.length > 0) {
         await supabase.from('media').insert(
           validatedMedia.map((m) => ({
@@ -1324,6 +1276,56 @@ export async function addPerspectiveAction({
       }
     }
   }
+
+  // 6. Background AI tagging and embeddings (non-blocking)
+  ;(async () => {
+    try {
+      const tags = await tagMemory(body)
+      const aiPlace = place || tags.places[0] || effectivePlace
+      const aiPeople = people.length > 0 ? people : tags.people
+      const aiMood = mood || tags.mood
+
+      const embedding = await embedMemorySafe({
+        text: body,
+        summary: tags.summary,
+        people: aiPeople,
+        place: aiPlace,
+        topics: tags.topics,
+        memoryType: tags.memoryType || 'Perspective',
+        mood: aiMood,
+      })
+
+      await supabase
+        .from('memory_perspectives')
+        .update({
+          place: aiPlace,
+          people: aiPeople,
+          topics: tags.topics,
+          mood: aiMood,
+          summary: tags.summary,
+          embedding,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', perspective.id)
+
+      if (personalMemoryId) {
+        await supabase
+          .from('memories')
+          .update({
+            place: aiPlace,
+            people: aiPeople,
+            topics: tags.topics,
+            mood: aiMood,
+            summary: tags.summary,
+            embedding,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', personalMemoryId)
+      }
+    } catch (err) {
+      console.error('Background perspective enrichment error:', err)
+    }
+  })()
 
   // 7. Dispatch notification to memory owner (if not self)
   if (memory.user_id !== user.id) {
@@ -1400,6 +1402,113 @@ export async function addPerspectiveAction({
           ]
         : []
     }),
+  }
+}
+
+export async function getPerspectivesPageAction({
+  memoryId,
+  limit = 10,
+  cursor,
+}: {
+  memoryId: string
+  limit?: number
+  cursor?: string
+}): Promise<{ perspectives: MemoryPerspective[]; nextCursor: string | null; hasMore: boolean }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { perspectives: [], nextCursor: null, hasMore: false }
+
+  const safeLimit = Math.min(Math.max(limit, 1), 50)
+
+  let query = supabase
+    .from('memory_perspectives')
+    .select('id, memory_id, user_id, body, place, people, topics, mood, summary, memory_type, saved_to_personal_memory, personal_memory_id, created_at, updated_at')
+    .eq('memory_id', memoryId)
+    .order('created_at', { ascending: true })
+
+  if (cursor) {
+    query = query.gt('created_at', cursor)
+  }
+
+  query = query.limit(safeLimit + 1)
+
+  const { data: rows, error } = await query
+  if (error || !rows) return { perspectives: [], nextCursor: null, hasMore: false }
+
+  const hasMore = rows.length > safeLimit
+  const pageRows = hasMore ? rows.slice(0, safeLimit) : rows
+
+  // Batch fetch author names
+  const authorIds = [...new Set(pageRows.map((p) => p.user_id))]
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .in('id', authorIds)
+
+  const profileMap = new Map<string, string>()
+  for (const p of profiles || []) {
+    profileMap.set(p.id, p.display_name || 'Friend')
+  }
+
+  // Batch fetch media
+  const perspectiveIds = pageRows.map((p) => p.id)
+  const { data: mediaRows } = await supabase
+    .from('media')
+    .select(mediaColumns)
+    .in('perspective_id', perspectiveIds)
+
+  const { signedMediaUrls } = await import('@/lib/memories')
+  const signedUrls = await signedMediaUrls(supabase, (mediaRows || []) as MediaRow[])
+
+  const perspectives: MemoryPerspective[] = pageRows.map((p) => {
+    const pMedia = ((mediaRows || []) as MediaRow[])
+      .filter((m) => m.perspective_id === p.id)
+      .flatMap((m) => {
+        const url = signedUrls.get(m.storage_path)
+        return url
+          ? [
+              {
+                id: m.id,
+                storagePath: m.storage_path,
+                mediaType: m.media_type,
+                fileName: m.file_name,
+                fileSize: m.file_size,
+                perspectiveId: m.perspective_id,
+                url,
+              },
+            ]
+          : []
+      })
+
+    return {
+      id: p.id,
+      memoryId: p.memory_id,
+      userId: p.user_id,
+      authorName: p.user_id === user.id ? 'You' : profileMap.get(p.user_id) || 'Friend',
+      text: p.body,
+      place: p.place,
+      people: p.people || [],
+      topics: p.topics || [],
+      mood: p.mood,
+      summary: p.summary,
+      memoryType: p.memory_type,
+      savedToPersonalMemory: p.saved_to_personal_memory,
+      personalMemoryId: p.personal_memory_id,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+      isAuthor: p.user_id === user.id,
+      media: pMedia,
+    }
+  })
+
+  const nextCursor = hasMore && pageRows.length > 0 ? pageRows[pageRows.length - 1].created_at : null
+
+  return {
+    perspectives,
+    nextCursor,
+    hasMore,
   }
 }
 

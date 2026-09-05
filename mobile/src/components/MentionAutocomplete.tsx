@@ -53,7 +53,7 @@ export function MentionAutocomplete({
       } finally {
         if (active) setLoading(false)
       }
-    }, 200)
+    }, 300)
 
     return () => {
       active = false

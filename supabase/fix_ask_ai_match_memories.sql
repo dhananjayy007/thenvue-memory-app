@@ -1,21 +1,16 @@
--- Phase 5B: Embeddings + Semantic Memory Retrieval Migration
--- Run this in your Supabase SQL Editor to enable pgvector, embedding columns, and semantic search RPC.
+-- =========================================================================
+-- Fix Ask AI Semantic Search (match_memories RPC)
+-- Run this in your Supabase Dashboard -> SQL Editor -> New query -> Run
+-- =========================================================================
 
--- 1. Enable pgvector extension
+-- Ensure vector extension exists
 create extension if not exists vector;
 
--- 2. Ensure embedding column exists on public.memories (768 dimensions for Gemini embeddings)
+-- Ensure embedding column exists
 alter table public.memories add column if not exists embedding vector(768);
 
--- 3. Create HNSW index for fast approximate nearest neighbor cosine similarity search
--- (hnsw is standard in pgvector >= 0.5.0 on PostgreSQL 15+)
-create index if not exists memories_embedding_hnsw_idx
-  on public.memories
-  using hnsw (embedding vector_cosine_ops)
-  where deleted_at is null;
-
--- 4. Create semantic search RPC function with strict user isolation
--- Uses security invoker so RLS policies on memories are enforced, and explicitly filters by auth.uid()
+-- Update match_memories function with search_path = public, extensions
+-- (Setting search_path = '' was hiding the pgvector <=> cosine distance operator)
 create or replace function public.match_memories(
   query_embedding vector(768),
   match_threshold float default 0.0,
@@ -64,5 +59,4 @@ begin
 end;
 $$;
 
--- 5. Grant execute permission to authenticated users
 grant execute on function public.match_memories(vector(768), float, int) to authenticated;
