@@ -6,7 +6,9 @@ import { nav } from '@/lib/seed-data'
 import { signOut } from '@/app/login/actions'
 import {
   createMemory,
+  enrichMemoryAction,
   createVoiceMemoryAction,
+  processVoiceMemoryAction,
   deleteMedia,
   deleteMemory,
   getMemories,
@@ -211,14 +213,24 @@ export function AppShell({
   }
 
   const save = async (media: NewMediaInput[] = [], capturedAt: MemoryCaptureTime, place?: string) => {
-    if (!draft.trim()) throw new Error('Write something before saving this memory.')
+    const textToSave = draft.trim()
+    if (!textToSave) throw new Error('Write something before saving this memory.')
     if (saving) return
     setSaving(true)
     try {
-      const created = await createMemory(draft, media, capturedAt, place)
+      const created = await createMemory(textToSave, media, capturedAt, place)
       setMemories((prev) => [created, ...prev])
       setCapture(false)
       showToast('Memory saved')
+
+      // Asynchronously trigger AI enrichment in background
+      enrichMemoryAction(created.id, place)
+        .then((enriched) => {
+          if (enriched) {
+            setMemories((prev) => prev.map((m) => (m.id === enriched.id ? enriched : m)))
+          }
+        })
+        .catch(() => {})
     } finally {
       setSaving(false)
     }
@@ -250,6 +262,19 @@ export function AppShell({
       setMemories((prev) => [created, ...prev])
       setCapture(false)
       showToast('Voice memory saved')
+
+      // Asynchronously trigger Gemini transcription & enrichment in background
+      processVoiceMemoryAction({
+        memoryId: created.id,
+        audioBase64,
+        mimeType,
+      })
+        .then((processed) => {
+          if (processed) {
+            setMemories((prev) => prev.map((m) => (m.id === processed.id ? processed : m)))
+          }
+        })
+        .catch(() => {})
     } finally {
       setSaving(false)
     }

@@ -47,21 +47,9 @@ export function Header({
       </View>
 
       <View style={styles.actions}>
-        {onOpenRediscover ? (
-          <TouchableOpacity style={styles.actionBtn} onPress={onOpenRediscover} activeOpacity={0.7}>
-            <Sparkles size={18} color={colors.accent} />
-          </TouchableOpacity>
-        ) : null}
-
-        {onOpenSearch ? (
-          <TouchableOpacity style={styles.actionBtn} onPress={onOpenSearch} activeOpacity={0.7}>
-            <Search size={18} color={colors.text} />
-          </TouchableOpacity>
-        ) : null}
-
         {onOpenNotifications ? (
-          <TouchableOpacity style={styles.actionBtn} onPress={onOpenNotifications} activeOpacity={0.7}>
-            <Bell size={18} color={colors.text} />
+          <TouchableOpacity style={styles.actionBtn} onPress={onOpenNotifications} activeOpacity={0.7} accessibilityLabel="Notifications">
+            <Bell size={20} color={colors.text} strokeWidth={1.8} />
             {unreadNotificationsCount > 0 ? (
               <View style={[styles.unreadBadge, { backgroundColor: colors.accent }]}>
                 <Text style={styles.unreadBadgeText}>
@@ -72,13 +60,9 @@ export function Header({
           </TouchableOpacity>
         ) : null}
 
-        <TouchableOpacity style={styles.actionBtn} onPress={onToggleTheme} activeOpacity={0.7}>
-          {dark ? <Sun size={18} color={colors.text} /> : <Moon size={18} color={colors.text} />}
-        </TouchableOpacity>
-
-        {onOpenCapture ? (
-          <TouchableOpacity style={styles.actionBtn} onPress={onOpenCapture} activeOpacity={0.7}>
-            <Plus size={20} color={colors.accent} />
+        {onOpenSearch ? (
+          <TouchableOpacity style={styles.actionBtn} onPress={onOpenSearch} activeOpacity={0.7} accessibilityLabel="Search">
+            <Search size={20} color={colors.text} strokeWidth={1.8} />
           </TouchableOpacity>
         ) : null}
       </View>

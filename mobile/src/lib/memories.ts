@@ -14,6 +14,47 @@ import type {
 import { tagMemory, embedText, transcribeAudio } from './ai'
 import { isSameCalendarDay } from './format'
 
+export async function getBatchSignedMediaUrls(rawMediaList: ({ storage_path?: string; media_type?: string } | string)[]) {
+  const normalized = rawMediaList.map((m) =>
+    typeof m === 'string' ? { storage_path: m, media_type: 'image' } : m
+  )
+  const photoPaths = [...new Set(normalized.filter((m) => m.storage_path && m.media_type !== 'audio').map((m) => m.storage_path!))]
+  const audioPaths = [...new Set(normalized.filter((m) => m.storage_path && m.media_type === 'audio').map((m) => m.storage_path!))]
+  const urlMap = new Map<string, string>()
+
+  const promises: Promise<any>[] = []
+
+  if (photoPaths.length > 0) {
+    promises.push(
+      supabase.storage.from('memory-photos').createSignedUrls(photoPaths, 3600).then(({ data }) => {
+        for (const item of data ?? []) {
+          if (item?.signedUrl && item?.path) {
+            urlMap.set(item.path, item.signedUrl)
+          }
+        }
+      })
+    )
+  }
+
+  if (audioPaths.length > 0) {
+    promises.push(
+      supabase.storage.from('memory-audio').createSignedUrls(audioPaths, 3600).then(({ data }) => {
+        for (const item of data ?? []) {
+          if (item?.signedUrl && item?.path) {
+            urlMap.set(item.path, item.signedUrl)
+          }
+        }
+      })
+    )
+  }
+
+  if (promises.length > 0) {
+    await Promise.all(promises)
+  }
+
+  return urlMap
+}
+
 export async function fetchMemories(): Promise<Memory[]> {
   const { data: { user } } = await supabase.auth.getUser()
   const currentUserId = user?.id
@@ -96,27 +137,31 @@ export async function fetchMemories(): Promise<Memory[]> {
     return true
   })
 
+  // Batch fetch all signed URLs in parallel (1-2 batch HTTP calls)
+  const allMedia = filteredRawMemories.flatMap((m: any) => (m.media as any[]) || [])
+  const signedUrlMap = await getBatchSignedMediaUrls(allMedia)
+
   const formatted: Memory[] = []
 
   for (const m of filteredRawMemories) {
     const rawMedia = (m.media as any[]) || []
-    const mediaAssets: MediaAsset[] = []
-
-    for (const item of rawMedia) {
-      const bucket = item.media_type === 'audio' ? 'memory-audio' : 'memory-photos'
-      const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(item.storage_path, 3600)
-
-      mediaAssets.push({
-        id: item.id,
-        url: signed?.signedUrl || '',
-        storagePath: item.storage_path,
-        mediaType: item.media_type as 'image' | 'audio' | 'document',
-        fileName: item.file_name,
-        fileSize: Number(item.file_size || 0),
-        perspectiveId: item.perspective_id,
-        createdAt: item.created_at,
-      })
-    }
+    const mediaAssets: MediaAsset[] = rawMedia.flatMap((item: any) => {
+      const url = signedUrlMap.get(item.storage_path) || ''
+      return url
+        ? [
+            {
+              id: item.id,
+              url,
+              storagePath: item.storage_path,
+              mediaType: item.media_type as 'image' | 'audio' | 'document',
+              fileName: item.file_name,
+              fileSize: Number(item.file_size || 0),
+              perspectiveId: item.perspective_id,
+              createdAt: item.created_at,
+            },
+          ]
+        : []
+    })
 
     formatted.push({
       id: m.id,
@@ -141,83 +186,92 @@ export async function fetchMemories(): Promise<Memory[]> {
   return formatted
 }
 
-
 export async function createMemory(
   text: string,
-  photos: { base64: string; fileName: string; fileSize: number }[]
+  photos: { base64: string; fileName: string; fileSize: number }[],
+  options?: {
+    customPlace?: string
+    customDate?: string
+    customTime?: string
+  }
 ): Promise<Memory> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
   const now = new Date()
-  const occurredOn = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
-  const occurredTime = [String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0'), '00'].join(':')
-  const occurredAt = now.toISOString()
+  const occurredOn = options?.customDate || [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
+  const occurredTime = options?.customTime ? `${options.customTime}:00` : [String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0'), '00'].join(':')
+  const occurredAt = new Date(`${occurredOn}T${occurredTime}`).toISOString()
 
-  // 1. AI Tagging & Embedding
-  const [tagResult, embedding] = await Promise.all([
-    tagMemory(text),
-    embedText(text),
-  ])
+  const firstLine = text.trim().split(/\r?\n|(?<=[.!?])\s/)[0] || 'A new memory'
+  const title = firstLine.slice(0, 80) || 'A new memory'
 
-  // 2. Insert memory
+  // 1. Insert core memory immediately
   const { data: memoryData, error: memError } = await supabase
     .from('memories')
     .insert({
       user_id: user.id,
-      title: tagResult.title,
+      title,
       body: text.trim(),
       occurred_at: occurredAt,
       occurred_on: occurredOn,
       occurred_time: occurredTime,
-      place: tagResult.place,
-      people: tagResult.people,
-      mood: tagResult.mood,
-      topics: tagResult.topics,
-      summary: tagResult.summary,
-      memory_type: tagResult.memoryType,
-      embedding: embedding ? embedding : null,
+      place: options?.customPlace?.trim() || 'Home',
+      people: [],
+      mood: 'calm',
+      topics: [],
+      summary: '',
+      memory_type: 'moment',
+      embedding: null,
     })
     .select()
     .single()
 
   if (memError) throw memError
 
-  // 3. Upload photos
+  // 2. Upload photos in parallel
   const mediaAssets: MediaAsset[] = []
-  for (const photo of photos) {
-    const storagePath = `${user.id}/${Date.now()}-${photo.fileName}`
-    const buffer = decodeBase64(photo.base64)
+  if (photos.length > 0) {
+    const uploadResults = await Promise.all(
+      photos.map(async (photo) => {
+        const storagePath = `${user.id}/${Date.now()}-${photo.fileName}`
+        const buffer = decodeBase64(photo.base64)
 
-    const { error: uploadErr } = await supabase.storage
-      .from('memory-photos')
-      .upload(storagePath, buffer, { contentType: 'image/jpeg', upsert: false })
+        const { error: uploadErr } = await supabase.storage
+          .from('memory-photos')
+          .upload(storagePath, buffer, { contentType: 'image/jpeg', upsert: false })
 
-    if (!uploadErr) {
-      const { data: mediaRow } = await supabase
-        .from('media')
-        .insert({
-          memory_id: memoryData.id,
-          user_id: user.id,
-          storage_path: storagePath,
-          media_type: 'image',
-          file_name: photo.fileName,
-          file_size: photo.fileSize,
-        })
-        .select()
-        .single()
+        if (uploadErr) return null
 
-      const { data: signed } = await supabase.storage.from('memory-photos').createSignedUrl(storagePath, 3600)
+        const { data: mediaRow } = await supabase
+          .from('media')
+          .insert({
+            memory_id: memoryData.id,
+            user_id: user.id,
+            storage_path: storagePath,
+            media_type: 'image',
+            file_name: photo.fileName,
+            file_size: photo.fileSize,
+          })
+          .select()
+          .single()
 
-      if (mediaRow) {
+        return { storagePath, photo, mediaRow }
+      })
+    )
+
+    const validUploads = uploadResults.filter(Boolean) as { storagePath: string; photo: any; mediaRow: any }[]
+    if (validUploads.length > 0) {
+      const urlMap = await getBatchSignedMediaUrls(validUploads.map((u) => ({ storage_path: u.storagePath, media_type: 'image' })))
+      for (const item of validUploads) {
         mediaAssets.push({
-          id: mediaRow.id,
-          url: signed?.signedUrl || '',
-          storagePath: storagePath,
+          id: item.mediaRow?.id || `${Date.now()}`,
+          url: urlMap.get(item.storagePath) || '',
+          storagePath: item.storagePath,
           mediaType: 'image',
-          fileName: photo.fileName,
-          fileSize: photo.fileSize,
-          createdAt: mediaRow.created_at,
+          fileName: item.photo.fileName,
+          fileSize: item.photo.fileSize,
+          createdAt: item.mediaRow?.created_at || new Date().toISOString(),
         })
       }
     }
@@ -228,14 +282,114 @@ export async function createMemory(
     title: memoryData.title,
     text: memoryData.body,
     date: memoryData.occurred_on,
-    time: (memoryData.occurred_time || '12:00:00').slice(0, 5),
+    time: memoryData.occurred_time?.slice(0, 5) || '12:00',
     place: memoryData.place || '',
     people: memoryData.people || [],
     mood: memoryData.mood || 'calm',
     topics: memoryData.topics || [],
     summary: memoryData.summary || '',
-    memoryType: memoryData.memory_type,
+    memoryType: memoryData.memory_type || 'moment',
     media: mediaAssets,
+    sourceMemoryId: memoryData.source_memory_id || null,
+    userId: memoryData.user_id,
+    isProcessing: true,
+    processingStatus: 'processing',
+  }
+}
+
+export async function enrichMemoryMobile(memoryId: string, text: string, customPlace?: string): Promise<Memory | null> {
+  try {
+    const [tagResult, embedding] = await Promise.all([
+      tagMemory(text),
+      embedText(text),
+    ])
+
+    const place = customPlace?.trim() || tagResult.place || 'Home'
+
+    const { data: updated, error } = await supabase
+      .from('memories')
+      .update({
+        place,
+        people: tagResult.people,
+        mood: tagResult.mood,
+        topics: tagResult.topics,
+        summary: tagResult.summary,
+        memory_type: tagResult.memoryType,
+        embedding: embedding ? embedding : null,
+      })
+      .eq('id', memoryId)
+      .select(`
+        id,
+        user_id,
+        title,
+        body,
+        occurred_on,
+        occurred_time,
+        place,
+        people,
+        mood,
+        topics,
+        summary,
+        memory_type,
+        source_memory_id,
+        shared_context,
+        media (
+          id,
+          storage_path,
+          media_type,
+          file_name,
+          file_size,
+          perspective_id,
+          created_at
+        )
+      `)
+      .single()
+
+    if (error || !updated) return null
+
+    const rawMedia = (updated.media as any[]) || []
+    const signedUrlMap = await getBatchSignedMediaUrls(rawMedia)
+
+    const mediaAssets: MediaAsset[] = rawMedia.flatMap((item: any) => {
+      const url = signedUrlMap.get(item.storage_path) || ''
+      return url
+        ? [
+            {
+              id: item.id,
+              url,
+              storagePath: item.storage_path,
+              mediaType: item.media_type as 'image' | 'audio' | 'document',
+              fileName: item.file_name,
+              fileSize: Number(item.file_size || 0),
+              perspectiveId: item.perspective_id,
+              createdAt: item.created_at,
+            },
+          ]
+        : []
+    })
+
+    return {
+      id: updated.id,
+      userId: updated.user_id,
+      title: updated.title || 'Untitled Memory',
+      text: updated.body,
+      date: updated.occurred_on,
+      time: (updated.occurred_time || '12:00:00').slice(0, 5),
+      place: updated.place || '',
+      people: updated.people || [],
+      mood: updated.mood || 'calm',
+      topics: updated.topics || [],
+      summary: updated.summary || '',
+      memoryType: updated.memory_type || 'moment',
+      sourceMemoryId: updated.source_memory_id,
+      sharedContext: updated.shared_context,
+      media: mediaAssets,
+      isProcessing: false,
+      processingStatus: 'completed',
+    }
+  } catch (err) {
+    console.error('enrichMemoryMobile error:', err)
+    return null
   }
 }
 
@@ -243,52 +397,45 @@ export async function createVoiceMemory(
   audioBase64: string,
   fileName: string,
   fileSize: number,
-  mimeType: string = 'audio/m4a'
+  mimeType: string = 'audio/m4a',
+  options?: {
+    customPlace?: string
+    customDate?: string
+    customTime?: string
+  }
 ): Promise<Memory> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
   const now = new Date()
-  const occurredOn = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
-  const occurredTime = [String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0'), '00'].join(':')
-  const occurredAt = now.toISOString()
+  const occurredOn = options?.customDate || [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
+  const occurredTime = options?.customTime ? `${options.customTime}:00` : [String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0'), '00'].join(':')
+  const occurredAt = new Date(`${occurredOn}T${occurredTime}`).toISOString()
 
-  // 1. Transcribe audio with Gemini
-  let transcribed = await transcribeAudio(audioBase64, mimeType)
-  if (!transcribed.trim()) {
-    transcribed = `[Voice memory recorded on ${occurredOn}]`
-  }
-
-  // 2. Tag and embed
-  const [tagResult, embedding] = await Promise.all([
-    tagMemory(transcribed),
-    embedText(transcribed),
-  ])
-
-  // 3. Insert memory
+  // 1. Insert core voice memory immediately
   const { data: memoryData, error: memError } = await supabase
     .from('memories')
     .insert({
       user_id: user.id,
-      title: tagResult.title || 'Voice Memory',
-      body: transcribed,
+      title: 'Voice memory',
+      body: `[Voice memory recorded on ${occurredOn}]`,
       occurred_at: occurredAt,
       occurred_on: occurredOn,
       occurred_time: occurredTime,
-      place: tagResult.place,
-      people: tagResult.people,
-      mood: tagResult.mood,
-      topics: tagResult.topics,
-      summary: tagResult.summary,
-      memory_type: tagResult.memoryType,
-      embedding: embedding ? embedding : null,
+      place: options?.customPlace?.trim() || 'Home',
+      people: [],
+      mood: 'calm',
+      topics: ['voice'],
+      summary: '',
+      memory_type: 'Voice',
+      embedding: null,
     })
     .select()
     .single()
 
   if (memError) throw memError
 
-  // 4. Upload audio file
+  // 2. Upload audio file
   const storagePath = `${user.id}/${Date.now()}-${fileName}`
   const buffer = decodeBase64(audioBase64)
 
@@ -311,12 +458,12 @@ export async function createVoiceMemory(
       .select()
       .single()
 
-    const { data: signed } = await supabase.storage.from('memory-audio').createSignedUrl(storagePath, 3600)
+    const urlMap = await getBatchSignedMediaUrls([{ storage_path: storagePath, media_type: 'audio' }])
 
     if (mediaRow) {
       mediaAssets.push({
         id: mediaRow.id,
-        url: signed?.signedUrl || '',
+        url: urlMap.get(storagePath) || '',
         storagePath: storagePath,
         mediaType: 'audio',
         fileName: fileName,
@@ -339,7 +486,163 @@ export async function createVoiceMemory(
     summary: memoryData.summary || '',
     memoryType: memoryData.memory_type,
     media: mediaAssets,
+    isProcessing: true,
+    processingStatus: 'processing',
   }
+}
+
+export async function processVoiceMemoryMobile(
+  memoryId: string,
+  audioBase64: string,
+  mimeType: string = 'audio/m4a',
+  capturedDate?: string
+): Promise<Memory | null> {
+  try {
+    let transcribed = await transcribeAudio(audioBase64, mimeType)
+    if (!transcribed.trim()) {
+      transcribed = `[Voice memory recorded on ${capturedDate || 'today'}]`
+    }
+
+    const [tagResult, embedding] = await Promise.all([
+      tagMemory(transcribed),
+      embedText(transcribed),
+    ])
+
+    const firstLine = transcribed.trim().split(/\r?\n|(?<=[.!?])\s/)[0] || 'Voice memory'
+    const title = transcribed.trim() ? (firstLine.slice(0, 80) || tagResult.title || 'Voice memory') : 'Voice memory'
+
+    const { data: updated, error } = await supabase
+      .from('memories')
+      .update({
+        title,
+        body: transcribed,
+        place: tagResult.place || 'Home',
+        people: tagResult.people,
+        mood: tagResult.mood,
+        topics: tagResult.topics,
+        summary: tagResult.summary,
+        memory_type: 'Voice',
+        embedding: embedding ? embedding : null,
+      })
+      .eq('id', memoryId)
+      .select(`
+        id,
+        user_id,
+        title,
+        body,
+        occurred_on,
+        occurred_time,
+        place,
+        people,
+        mood,
+        topics,
+        summary,
+        memory_type,
+        source_memory_id,
+        shared_context,
+        media (
+          id,
+          storage_path,
+          media_type,
+          file_name,
+          file_size,
+          perspective_id,
+          created_at
+        )
+      `)
+      .single()
+
+    if (error || !updated) return null
+
+    const rawMedia = (updated.media as any[]) || []
+    const signedUrlMap = await getBatchSignedMediaUrls(rawMedia)
+
+    const mediaAssets: MediaAsset[] = rawMedia.flatMap((item: any) => {
+      const url = signedUrlMap.get(item.storage_path) || ''
+      return url
+        ? [
+            {
+              id: item.id,
+              url,
+              storagePath: item.storage_path,
+              mediaType: item.media_type as 'image' | 'audio' | 'document',
+              fileName: item.file_name,
+              fileSize: Number(item.file_size || 0),
+              perspectiveId: item.perspective_id,
+              createdAt: item.created_at,
+            },
+          ]
+        : []
+    })
+
+    return {
+      id: updated.id,
+      userId: updated.user_id,
+      title: updated.title,
+      text: updated.body,
+      date: updated.occurred_on,
+      time: (updated.occurred_time || '12:00:00').slice(0, 5),
+      place: updated.place || '',
+      people: updated.people || [],
+      mood: updated.mood || 'calm',
+      topics: updated.topics || [],
+      summary: updated.summary || '',
+      memoryType: updated.memory_type || 'Voice',
+      sourceMemoryId: updated.source_memory_id,
+      sharedContext: updated.shared_context,
+      media: mediaAssets,
+      isProcessing: false,
+      processingStatus: 'completed',
+    }
+  } catch (err) {
+    console.error('processVoiceMemoryMobile error:', err)
+    await supabase
+      .from('memories')
+      .update({ processing_status: 'failed' })
+      .eq('id', memoryId)
+
+    return null
+  }
+}
+
+export async function retryVoiceEnrichmentMobile(memoryId: string): Promise<Memory | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  // 1. Query media row
+  const { data: media } = await supabase
+    .from('media')
+    .select('storage_path, media_type')
+    .eq('memory_id', memoryId)
+    .eq('user_id', user.id)
+    .eq('media_type', 'audio')
+    .maybeSingle()
+
+  if (!media?.storage_path) {
+    return enrichMemoryMobile(memoryId, '')
+  }
+
+  // 2. Download audio file
+  const { data: audioBlob, error: downloadErr } = await supabase.storage
+    .from('memory-audio')
+    .download(media.storage_path)
+
+  if (downloadErr || !audioBlob) {
+    console.error('Could not download audio for retry:', downloadErr)
+    return null
+  }
+
+  const arrayBuffer = await audioBlob.arrayBuffer()
+  const bytes = new Uint8Array(arrayBuffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  const audioBase64 = btoa(binary)
+  const ext = media.storage_path.split('.').pop()?.toLowerCase() || 'm4a'
+  const mimeType = ext === 'mp4' || ext === 'm4a' ? 'audio/m4a' : 'audio/webm'
+
+  return processVoiceMemoryMobile(memoryId, audioBase64, mimeType)
 }
 
 export async function deleteMemory(id: string): Promise<void> {
@@ -574,36 +877,48 @@ function decodeBase64(base64: string): Uint8Array {
 // ==========================================================================
 
 export async function searchUsers(query: string): Promise<UserSearchResult[]> {
-  const trimmed = query.trim()
-  if (!trimmed || trimmed.length < 2) return []
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
 
-  const { data, error } = await supabase.rpc('search_users_to_invite', {
-    search_query: trimmed,
-  })
+  const trimmed = (query || '').trim()
 
-  if (error) {
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('search_users_to_invite', {
+      search_query: trimmed,
+    })
+
+    if (!rpcError && Array.isArray(rpcData)) {
+      return rpcData.map((u: any) => ({
+        id: u.id,
+        email: u.email || '',
+        displayName: u.display_name || u.email?.split('@')[0] || 'User',
+        avatarUrl: u.avatar_url,
+      }))
+    }
+
     // Fallback: search profiles table directly
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: profiles } = await supabase
+    let q = supabase
       .from('profiles')
-      .select('id, display_name')
-      .neq('id', user?.id || '')
-      .ilike('display_name', `%${trimmed}%`)
+      .select('id, display_name, email, avatar_url')
+      .neq('id', user.id)
       .limit(10)
 
-    if (!profiles) return []
-    return profiles.map((p) => ({
-      id: p.id,
-      displayName: p.display_name || 'Thenvue User',
-      email: '',
-    }))
-  }
+    if (trimmed) {
+      q = q.or(`display_name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`)
+    }
 
-  return (data || []).map((u: any) => ({
-    id: u.id,
-    displayName: u.display_name || 'Thenvue User',
-    email: u.email || '',
-  }))
+    const { data: profiles } = await q
+
+    return (profiles || []).map((u: any) => ({
+      id: u.id,
+      email: u.email || '',
+      displayName: u.display_name || u.email?.split('@')[0] || 'User',
+      avatarUrl: u.avatar_url,
+    }))
+  } catch (err) {
+    console.error('searchUsers error:', err)
+    return []
+  }
 }
 
 export async function inviteParticipants(memoryId: string, userIds: string[]): Promise<void> {
@@ -1224,7 +1539,9 @@ export async function getPastImportQuotaMobile(): Promise<PastImportQuota> {
 }
 
 export type MobilePastPhotoInput = {
-  base64: string
+  uri?: string
+  base64?: string
+  storagePath?: string
   fileName: string
   fileSize: number
   mimeType?: string
@@ -1260,65 +1577,91 @@ export async function uploadAndProcessPastPhotosMobile({
 
   const { extractPhotoMetadataMobile } = await import('./photo-date-extractor')
   const uploadedAssets: ImportedAsset[] = []
+  const storagePathsForSigning: string[] = []
   let duplicateCount = 0
   let failedCount = 0
 
-  for (const photo of photos) {
-    try {
-      const ext = photo.fileName.split('.').pop()?.toLowerCase() || 'jpg'
-      const storagePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`
-      const bytes = decodeBase64(photo.base64)
-      const contentType = photo.mimeType || (ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg')
+  // Parallel upload with concurrency limit 5
+  const UPLOAD_CONCURRENCY = 5
+  for (let i = 0; i < photos.length; i += UPLOAD_CONCURRENCY) {
+    const chunk = photos.slice(i, i + UPLOAD_CONCURRENCY)
+    await Promise.all(
+      chunk.map(async (photo) => {
+        try {
+          const ext = photo.fileName.split('.').pop()?.toLowerCase() || 'jpg'
+          const storagePath = photo.storagePath || `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`
+          const contentType = photo.mimeType || (ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg')
 
-      const extracted = extractPhotoMetadataMobile({
-        bytes,
-        fileName: photo.fileName,
-        nativeCreationDate: photo.nativeCreationDate,
+          let bytes: Uint8Array | null = null
+          if (photo.base64) {
+            bytes = decodeBase64(photo.base64)
+          } else if (photo.uri) {
+            const resp = await fetch(photo.uri)
+            const ab = await resp.arrayBuffer()
+            bytes = new Uint8Array(ab)
+          }
+
+          if (bytes && !photo.storagePath) {
+            const { error: uploadErr } = await supabase.storage
+              .from('memory-photos')
+              .upload(storagePath, bytes, { contentType, upsert: false })
+
+            if (uploadErr) {
+              failedCount++
+              return
+            }
+          }
+
+          const extracted = bytes
+            ? extractPhotoMetadataMobile({
+                bytes,
+                fileName: photo.fileName,
+                nativeCreationDate: photo.nativeCreationDate,
+              })
+            : {
+                capturedAt: photo.capturedAt || null,
+                capturedDate: photo.capturedDate || null,
+                capturedTime: photo.capturedTime || null,
+                dateSource: photo.dateSource || 'unknown',
+                dateStatus: photo.dateStatus || 'unknown',
+                importedAt: new Date().toISOString(),
+                latitude: photo.latitude ?? null,
+                longitude: photo.longitude ?? null,
+              }
+
+          const assetId = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+          storagePathsForSigning.push(storagePath)
+
+          uploadedAssets.push({
+            id: assetId,
+            userId: user.id,
+            storagePath,
+            sourceType: 'past_import',
+            capturedAt: extracted.capturedAt || photo.capturedAt || null,
+            capturedDate: extracted.capturedDate || photo.capturedDate || null,
+            capturedTime: extracted.capturedTime || photo.capturedTime || null,
+            dateSource: extracted.dateSource || photo.dateSource || 'unknown',
+            dateStatus: (extracted.dateStatus || photo.dateStatus || 'unknown') as any,
+            importedAt: extracted.importedAt,
+            latitude: extracted.latitude ?? photo.latitude ?? null,
+            longitude: extracted.longitude ?? photo.longitude ?? null,
+            mimeType: contentType,
+            fileSize: photo.fileSize,
+            processingStatus: 'processed',
+            createdAt: new Date().toISOString(),
+          })
+        } catch {
+          failedCount++
+        }
       })
+    )
+  }
 
-      const effectiveCapturedAt = extracted.capturedAt || photo.capturedAt || null
-      const effectiveCapturedDate = extracted.capturedDate || photo.capturedDate || null
-      const effectiveCapturedTime = extracted.capturedTime || photo.capturedTime || null
-      const effectiveDateSource = extracted.dateSource || photo.dateSource || 'unknown'
-      const effectiveDateStatus = extracted.dateStatus || photo.dateStatus || 'unknown'
-
-      const { error: uploadErr } = await supabase.storage
-        .from('memory-photos')
-        .upload(storagePath, bytes, { contentType, upsert: false })
-
-      if (uploadErr) {
-        failedCount++
-        continue
-      }
-
-      const { data: signed } = await supabase.storage
-        .from('memory-photos')
-        .createSignedUrl(storagePath, 3600)
-
-      const assetId = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-      const assetUrl = signed?.signedUrl || ''
-
-      uploadedAssets.push({
-        id: assetId,
-        userId: user.id,
-        storagePath,
-        sourceType: 'past_import',
-        capturedAt: effectiveCapturedAt,
-        capturedDate: effectiveCapturedDate,
-        capturedTime: effectiveCapturedTime,
-        dateSource: effectiveDateSource,
-        dateStatus: effectiveDateStatus,
-        importedAt: extracted.importedAt,
-        latitude: extracted.latitude ?? photo.latitude ?? null,
-        longitude: extracted.longitude ?? photo.longitude ?? null,
-        mimeType: contentType,
-        fileSize: photo.fileSize,
-        processingStatus: 'processed',
-        createdAt: new Date().toISOString(),
-        url: assetUrl,
-      })
-    } catch {
-      failedCount++
+  // Batch signed URLs
+  if (storagePathsForSigning.length > 0) {
+    const signedUrlMap = await getBatchSignedMediaUrls(storagePathsForSigning)
+    for (const asset of uploadedAssets) {
+      asset.url = signedUrlMap.get(asset.storagePath) || ''
     }
   }
 
@@ -1374,59 +1717,66 @@ export async function uploadAndProcessPastPhotosMobile({
     rawClusters.push(currentCluster)
   }
 
-  // 3. AI Understanding
+  // 3. AI Understanding in Parallel (concurrency 3)
   const candidates: MemoryClusterCandidate[] = []
+  const CLUSTER_CONCURRENCY = 3
 
-  for (const clusterAssets of rawClusters) {
-    const clusterId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
-    const firstAssetWithDate = clusterAssets.find((a) => a.capturedDate) || clusterAssets[0]
-    const clusterDate = firstAssetWithDate?.capturedDate || null
-    const clusterTime = firstAssetWithDate?.capturedTime || '12:00'
-    const clusterDateStatus = clusterAssets.some((a) => a.dateStatus === 'exact')
-      ? 'exact'
-      : clusterAssets.some((a) => a.dateStatus === 'inferred')
-      ? 'inferred'
-      : 'unknown'
-    const clusterDateSource = firstAssetWithDate?.dateSource || 'unknown'
+  for (let i = 0; i < rawClusters.length; i += CLUSTER_CONCURRENCY) {
+    const clusterChunk = rawClusters.slice(i, i + CLUSTER_CONCURRENCY)
+    const chunkCandidates = await Promise.all(
+      clusterChunk.map(async (clusterAssets) => {
+        const clusterId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+        const firstAssetWithDate = clusterAssets.find((a) => a.capturedDate) || clusterAssets[0]
+        const clusterDate = firstAssetWithDate?.capturedDate || null
+        const clusterTime = firstAssetWithDate?.capturedTime || '12:00'
+        const clusterDateStatus = clusterAssets.some((a) => a.dateStatus === 'exact')
+          ? 'exact'
+          : clusterAssets.some((a) => a.dateStatus === 'inferred')
+          ? 'inferred'
+          : 'unknown'
+        const clusterDateSource = firstAssetWithDate?.dateSource || 'unknown'
 
-    let inferredTitle = clusterAssets.length === 1 ? 'Past Moment' : `${clusterAssets.length} Photos Moment`
-    let inferredSummary = `Imported past moment with ${clusterAssets.length} photo${clusterAssets.length === 1 ? '' : 's'}.`
-    let inferredPlace = ''
-    let inferredPeople: string[] = []
-    let inferredTopics = ['past photos', 'rediscover']
-    let inferredMood = 'reflective'
+        let inferredTitle = clusterAssets.length === 1 ? 'Past Moment' : `${clusterAssets.length} Photos Moment`
+        let inferredSummary = `Imported past moment with ${clusterAssets.length} photo${clusterAssets.length === 1 ? '' : 's'}.`
+        let inferredPlace = ''
+        let inferredPeople: string[] = []
+        let inferredTopics = ['past photos', 'rediscover']
+        let inferredMood = 'reflective'
 
-    try {
-      const tags = await tagMemory(`Past moment with ${clusterAssets.length} photos around ${clusterDate || 'past'}`)
-      if (tags.summary) inferredSummary = tags.summary
-      if (tags.place) inferredPlace = tags.place
-      if (tags.topics?.length) inferredTopics = tags.topics
-      if (tags.mood) inferredMood = tags.mood
-    } catch {
-      // Graceful fallback
-    }
+        try {
+          const tags = await tagMemory(`Past moment with ${clusterAssets.length} photos around ${clusterDate || 'past'}`)
+          if (tags.summary) inferredSummary = tags.summary
+          if (tags.place) inferredPlace = tags.place
+          if (tags.topics?.length) inferredTopics = tags.topics
+          if (tags.mood) inferredMood = tags.mood
+        } catch {
+          // Graceful fallback
+        }
 
-    candidates.push({
-      id: clusterId,
-      userId: user.id,
-      title: inferredTitle,
-      summary: inferredSummary,
-      suggestedDate: clusterDate,
-      suggestedTime: clusterTime,
-      dateSource: clusterDateSource,
-      dateStatus: clusterDateStatus,
-      locationName: inferredPlace,
-      latitude: firstAssetWithDate?.latitude || null,
-      longitude: firstAssetWithDate?.longitude || null,
-      people: inferredPeople,
-      topics: inferredTopics,
-      mood: inferredMood,
-      photoCount: clusterAssets.length,
-      confidence: 0.9,
-      status: 'pending',
-      assets: clusterAssets,
-      createdAt: new Date().toISOString(),
-    })
+        return {
+          id: clusterId,
+          userId: user.id,
+          title: inferredTitle,
+          summary: inferredSummary,
+          suggestedDate: clusterDate,
+          suggestedTime: clusterTime,
+          dateSource: clusterDateSource,
+          dateStatus: clusterDateStatus as any,
+          locationName: inferredPlace,
+          latitude: firstAssetWithDate?.latitude || null,
+          longitude: firstAssetWithDate?.longitude || null,
+          people: inferredPeople,
+          topics: inferredTopics,
+          mood: inferredMood,
+          photoCount: clusterAssets.length,
+          confidence: 0.9,
+          status: 'pending' as const,
+          assets: clusterAssets,
+          createdAt: new Date().toISOString(),
+        }
+      })
+    )
+    candidates.push(...chunkCandidates)
   }
 
   return { candidates, duplicateCount, failedCount }
@@ -1466,26 +1816,12 @@ export async function saveRediscoveredMemoryMobile({
 
   const effectiveTitle = title.trim() || 'Rediscovered Memory'
   const effectiveBody = story?.trim() || `Rediscovered memory from ${cleanDate} with ${storagePaths.length} photo${storagePaths.length === 1 ? '' : 's'}.`
+  const finalTopics = topics.length > 0 ? topics : ['past photos', 'rediscover']
+  const finalPeople = people
+  const finalPlace = place.trim()
+  const finalMood = mood || 'reflective'
 
-  // 1. Tags & embedding
-  const [tags, embedding] = await Promise.all([
-    tagMemory(effectiveBody).catch(() => ({
-      place: '',
-      people: [],
-      topics: ['past photos', 'rediscover'],
-      mood: 'reflective',
-      summary: effectiveBody.slice(0, 100),
-      memory_type: 'moment',
-    })),
-    embedText(effectiveBody).catch(() => null),
-  ])
-
-  const finalTopics = topics.length > 0 ? topics : tags.topics
-  const finalPeople = people.length > 0 ? people : tags.people
-  const finalPlace = place.trim() || tags.place
-  const finalMood = mood || tags.mood || 'reflective'
-
-  // 2. Insert into memories
+  // P2: Insert core memory immediately (<100ms) with processing_status = 'processing'
   const { data: memoryData, error: memError } = await supabase
     .from('memories')
     .insert({
@@ -1498,46 +1834,50 @@ export async function saveRediscoveredMemoryMobile({
       place: finalPlace,
       people: finalPeople,
       topics: finalTopics,
-      summary: tags.summary || effectiveBody.slice(0, 120),
+      summary: effectiveBody.slice(0, 120),
       memory_type: 'moment',
       mood: finalMood,
-      embedding,
+      processing_status: 'processing',
     })
     .select()
     .single()
 
   if (memError || !memoryData) throw new Error(memError?.message || 'Could not save memory.')
 
-  // 3. Attach media with source_type = 'past_import'
+  // Parallel media insert
   const mediaAssets: MediaAsset[] = []
-  for (const path of storagePaths) {
-    const fileName = path.split('/').pop() || 'photo.jpg'
-    const { data: mRow } = await supabase
-      .from('media')
-      .insert({
-        memory_id: memoryData.id,
-        user_id: user.id,
-        storage_path: path,
-        media_type: 'image',
-        file_name: fileName,
-        file_size: 150000,
-        source_type: 'past_import',
+  if (storagePaths.length > 0) {
+    const signedUrlMap = await getBatchSignedMediaUrls(storagePaths)
+    const insertedMedia = await Promise.all(
+      storagePaths.map(async (path) => {
+        const fileName = path.split('/').pop() || 'photo.jpg'
+        const { data: mRow } = await supabase
+          .from('media')
+          .insert({
+            memory_id: memoryData.id,
+            user_id: user.id,
+            storage_path: path,
+            media_type: 'image',
+            file_name: fileName,
+            file_size: 150000,
+            source_type: 'past_import',
+          })
+          .select()
+          .single()
+
+        return {
+          id: mRow?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          url: signedUrlMap.get(path) || '',
+          storagePath: path,
+          mediaType: 'image' as const,
+          fileName,
+          fileSize: 150000,
+          createdAt: mRow?.created_at || new Date().toISOString(),
+          sourceType: 'past_import' as const,
+        }
       })
-      .select()
-      .single()
-
-    const { data: signed } = await supabase.storage.from('memory-photos').createSignedUrl(path, 3600)
-
-    mediaAssets.push({
-      id: mRow?.id || `${Date.now()}`,
-      url: signed?.signedUrl || '',
-      storagePath: path,
-      mediaType: 'image',
-      fileName,
-      fileSize: 150000,
-      createdAt: mRow?.created_at || new Date().toISOString(),
-      sourceType: 'past_import',
-    })
+    )
+    mediaAssets.push(...insertedMedia)
   }
 
   return {
@@ -1555,26 +1895,141 @@ export async function saveRediscoveredMemoryMobile({
     memoryType: memoryData.memory_type || 'moment',
     media: mediaAssets,
     isOwner: true,
+    isProcessing: true,
+    processingStatus: 'processing',
   }
 }
 
-export async function fetchRediscoveredMemories(): Promise<Memory[]> {
+export async function updateMemory(
+  id: string,
+  updates: {
+    title?: string
+    text?: string
+    place?: string
+    date?: string
+    time?: string
+  }
+): Promise<Memory> {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  if (!user) throw new Error('Not authenticated')
 
-  const { data: mediaItems } = await supabase
-    .from('media')
-    .select('memory_id')
+  const now = new Date()
+  const cleanDate = updates.date || now.toISOString().slice(0, 10)
+  const cleanTime = updates.time || now.toTimeString().slice(0, 5)
+
+  const payload: any = {}
+  if (updates.title !== undefined) payload.title = updates.title
+  if (updates.text !== undefined) payload.body = updates.text
+  if (updates.place !== undefined) payload.place = updates.place
+  if (updates.date !== undefined) {
+    payload.occurred_on = cleanDate
+    payload.occurred_at = `${cleanDate}T${cleanTime}.000Z`
+  }
+  if (updates.time !== undefined) {
+    payload.occurred_time = cleanTime
+    payload.occurred_at = `${cleanDate}T${cleanTime}.000Z`
+  }
+
+  // If text changed, update summary & embedding
+  if (updates.text) {
+    try {
+      const [tags, embedding] = await Promise.all([
+        tagMemory(updates.text),
+        embedText(updates.text),
+      ])
+      if (tags.summary) payload.summary = tags.summary
+      if (embedding && Array.isArray(embedding) && embedding.length > 0) payload.embedding = embedding
+      if (tags.topics && tags.topics.length > 0) payload.topics = tags.topics
+    } catch (e) {
+      console.warn('AI re-tagging skipped:', e)
+    }
+  }
+
+  const { data: updatedRow, error } = await supabase
+    .from('memories')
+    .update(payload)
+    .eq('id', id)
     .eq('user_id', user.id)
-    .eq('source_type', 'past_import')
+    .select(`
+      id,
+      user_id,
+      title,
+      body,
+      occurred_on,
+      occurred_time,
+      place,
+      people,
+      mood,
+      topics,
+      summary,
+      memory_type,
+      media (
+        id,
+        storage_path,
+        media_type,
+        file_name,
+        file_size,
+        created_at
+      )
+    `)
+    .single()
 
-  if (!mediaItems || mediaItems.length === 0) return []
+  if (error || !updatedRow) throw new Error(error?.message || 'Could not update memory.')
 
-  const memoryIds = Array.from(new Set(mediaItems.map((m) => m.memory_id).filter(Boolean)))
-  if (memoryIds.length === 0) return []
+  const mediaAssets: MediaAsset[] = []
+  for (const m of updatedRow.media || []) {
+    const bucket = m.media_type === 'audio' ? 'memory-audio' : 'memory-photos'
+    const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(m.storage_path, 3600)
+    mediaAssets.push({
+      id: m.id,
+      url: signed?.signedUrl || '',
+      storagePath: m.storage_path,
+      mediaType: m.media_type,
+      fileName: m.file_name,
+      fileSize: m.file_size,
+      createdAt: m.created_at,
+    })
+  }
 
-  const allMemories = await fetchMemories()
-  return allMemories.filter((m) => memoryIds.includes(m.id))
+  return {
+    id: updatedRow.id,
+    userId: updatedRow.user_id,
+    title: updatedRow.title,
+    text: updatedRow.body,
+    date: updatedRow.occurred_on,
+    time: updatedRow.occurred_time,
+    place: updatedRow.place || '',
+    people: updatedRow.people || [],
+    topics: updatedRow.topics || [],
+    mood: updatedRow.mood || '',
+    summary: updatedRow.summary || '',
+    memoryType: updatedRow.memory_type || 'moment',
+    media: mediaAssets,
+    isOwner: true,
+  }
 }
+
+export async function deleteMedia(mediaId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: mediaRow } = await supabase
+    .from('media')
+    .select('id, storage_path, media_type, memory_id')
+    .eq('id', mediaId)
+    .single()
+
+  if (!mediaRow) return
+
+  // Delete from storage
+  const bucket = mediaRow.media_type === 'audio' ? 'memory-audio' : 'memory-photos'
+  if (mediaRow.storage_path) {
+    await supabase.storage.from(bucket).remove([mediaRow.storage_path])
+  }
+
+  // Delete row
+  await supabase.from('media').delete().eq('id', mediaId)
+}
+
 
 

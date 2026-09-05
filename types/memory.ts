@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react'
 
+export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
 export type Memory = {
   id: string
   userId?: string
@@ -15,6 +17,8 @@ export type Memory = {
   media: MediaAsset[]
   title: string
   isOwner?: boolean
+  isProcessing?: boolean
+  processingStatus?: ProcessingStatus
   sourceMemoryId?: string | null
   sharedContext?: string | null
   participants?: MemoryParticipant[]

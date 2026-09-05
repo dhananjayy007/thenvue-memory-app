@@ -26,7 +26,7 @@ export function TimelineScreen({
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
-    return memories.filter((m) => {
+    const list = memories.filter((m) => {
       if (filter === 'photos' && !m.media.some((x) => x.mediaType === 'image')) return false
       if (filter === 'places' && !m.place) return false
       if (filter === 'people' && m.people.length === 0) return false
@@ -40,6 +40,12 @@ export function TimelineScreen({
         m.people.some((p) => p.toLowerCase().includes(q)) ||
         m.topics.some((t) => t.toLowerCase().includes(q))
       )
+    })
+
+    return list.sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+      if (dateDiff !== 0) return dateDiff
+      return (b.time || '').localeCompare(a.time || '')
     })
   }, [memories, filter, search])
 
@@ -139,7 +145,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 16,
     paddingTop: 24,
-    paddingBottom: 110,
+    paddingBottom: 130,
   },
   heading: {
     marginBottom: 20,

@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import { Compass, ArrowRight } from 'lucide-react-native'
+import { Film, ArrowRight } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
 import { formatDate } from '../lib/format'
@@ -27,7 +27,7 @@ export function RediscoverCard({
     >
       <View style={styles.header}>
         <View style={[styles.badge, { backgroundColor: colors.accentLight }]}>
-          <Compass size={14} color={colors.accent} />
+          <Film size={14} color={colors.accent} />
           <Text style={[styles.badgeText, { color: colors.accent }]}>Rediscover</Text>
         </View>
         <Text style={[styles.dateText, { color: colors.textMuted }]}>{formatDate(memory.date)}</Text>

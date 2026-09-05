@@ -49,26 +49,14 @@ export async function POST(request: NextRequest) {
   try {
     const capturedAt = validateCaptureTime(payload.capturedAt)
     const media = validateMediaInputs(payload.media ?? [], auth.user.id)
-    const tags = await tagMemory(text)
     const explicitPlace = optionalString(payload.place, 120)
     const explicitPeople = optionalStrings(payload.people, 20, 80)
     const explicitTopics = optionalStrings(payload.topics, 10, 40)
     const explicitMood = optionalString(payload.mood, 80)
-    const place = explicitPlace || tags.places[0] || 'Home'
-    const people = explicitPeople.length ? explicitPeople : tags.people
-    const topics = explicitTopics.length ? explicitTopics : tags.topics
-    const mood = explicitMood || tags.mood
-
-    // Generate vector embedding safely server-side
-    const embedding = await embedMemorySafe({
-      text,
-      summary: tags.summary,
-      people,
-      place,
-      topics,
-      memoryType: tags.memoryType,
-      mood,
-    })
+    const place = explicitPlace || 'Home'
+    const people = explicitPeople
+    const topics = explicitTopics
+    const mood = explicitMood || 'calm'
 
     const { data: memory, error: memoryError } = await auth.client
       .from('memories')
@@ -81,10 +69,10 @@ export async function POST(request: NextRequest) {
         place,
         people,
         topics,
-        summary: tags.summary,
-        memory_type: tags.memoryType,
+        summary: '',
+        memory_type: 'moment',
         mood,
-        embedding,
+        embedding: null,
       })
       .select(bareMemoryColumns)
       .single()
@@ -110,6 +98,43 @@ export async function POST(request: NextRequest) {
       }
       createdMedia = data as MediaRow[]
     }
+
+    // Trigger AI enrichment in background safely
+    (async () => {
+      try {
+        const tags = await tagMemory(text)
+        const finalPlace = explicitPlace || tags.places[0] || 'Home'
+        const finalPeople = explicitPeople.length ? explicitPeople : tags.people
+        const finalTopics = explicitTopics.length ? explicitTopics : tags.topics
+        const finalMood = explicitMood || tags.mood
+
+        const embedding = await embedMemorySafe({
+          text,
+          summary: tags.summary,
+          people: finalPeople,
+          place: finalPlace,
+          topics: finalTopics,
+          memoryType: tags.memoryType,
+          mood: finalMood,
+        })
+
+        await auth.client
+          .from('memories')
+          .update({
+            place: finalPlace,
+            people: finalPeople,
+            topics: finalTopics,
+            summary: tags.summary,
+            memory_type: tags.memoryType,
+            mood: finalMood,
+            embedding,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', memory.id)
+      } catch (e) {
+        console.error('API async enrichment error:', e)
+      }
+    })()
 
     return NextResponse.json(
       { memory: await rowToMemoryWithSignedMedia(auth.client, { ...memory, media: createdMedia } as MemoryRow) },

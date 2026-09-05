@@ -15,7 +15,7 @@ import {
 } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import {
-  Sparkles,
+  Film,
   X,
   Plus,
   Calendar,
@@ -31,6 +31,7 @@ import {
   getPastImportQuotaMobile,
   uploadAndProcessPastPhotosMobile,
   saveRediscoveredMemoryMobile,
+  enrichMemoryMobile,
   type MobilePastPhotoInput,
 } from '../lib/memories'
 
@@ -48,7 +49,7 @@ export function RediscoverModal({
   const [quota, setQuota] = useState<PastImportQuota>({ used: 0, limit: 100, remaining: 100 })
   const [stage, setStage] = useState<'select' | 'processing' | 'review'>('select')
   const [selectedPhotos, setSelectedPhotos] = useState<
-    { uri: string; base64: string; fileName: string; fileSize: number }[]
+    { uri: string; fileName: string; fileSize: number }[]
   >([])
   const [processingStatus, setProcessingStatus] = useState<string>('Preparing past photos...')
   const [candidates, setCandidates] = useState<MemoryClusterCandidate[]>([])
@@ -92,21 +93,18 @@ export function RediscoverModal({
         allowsMultipleSelection: true,
         selectionLimit: quota.remaining,
         quality: 0.8,
-        base64: true,
+        base64: false,
       })
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const picked: { uri: string; base64: string; fileName: string; fileSize: number }[] = []
+        const picked: { uri: string; fileName: string; fileSize: number }[] = []
 
         for (const asset of result.assets) {
-          if (asset.base64) {
-            picked.push({
-              uri: asset.uri,
-              base64: asset.base64,
-              fileName: asset.fileName || `past_photo_${Date.now()}.jpg`,
-              fileSize: asset.fileSize || 150000,
-            })
-          }
+          picked.push({
+            uri: asset.uri,
+            fileName: asset.fileName || `past_photo_${Date.now()}.jpg`,
+            fileSize: asset.fileSize || 150000,
+          })
         }
 
         setSelectedPhotos((prev) => [...prev, ...picked].slice(0, quota.remaining))
@@ -127,7 +125,7 @@ export function RediscoverModal({
 
     try {
       const inputs: MobilePastPhotoInput[] = selectedPhotos.map((p) => ({
-        base64: p.base64,
+        uri: p.uri,
         fileName: p.fileName,
         fileSize: p.fileSize,
       }))
@@ -144,12 +142,19 @@ export function RediscoverModal({
   }
 
   const handleSaveCandidate = async (candidate: MemoryClusterCandidate) => {
+    if (!candidate.suggestedDate) {
+      Alert.alert('Date required', 'Please choose a capture date before saving this memory.')
+      setEditingId(candidate.id)
+      return
+    }
+
     setSavingId(candidate.id)
     try {
+      // P2: Instant save (<300ms)
       const mem = await saveRediscoveredMemoryMobile({
         title: candidate.title,
         story: candidate.summary,
-        date: candidate.suggestedDate || new Date().toISOString().slice(0, 10),
+        date: candidate.suggestedDate,
         place: candidate.locationName,
         people: candidate.people,
         topics: candidate.topics,
@@ -157,7 +162,12 @@ export function RediscoverModal({
         storagePaths: candidate.assets.map((a) => a.storagePath),
       })
 
+      // Add to timeline with syncing indicator
       onMemoryCreated(mem)
+
+      // Trigger background enrichment
+      enrichMemoryMobile(mem.id, mem.text || '').catch((e) => console.warn('Background enrichment error:', e))
+
       setCandidates((prev) => prev.filter((c) => c.id !== candidate.id))
       getPastImportQuotaMobile().then(setQuota).catch(console.error)
 
@@ -192,7 +202,7 @@ export function RediscoverModal({
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
               <View style={styles.iconCircle}>
-                <Sparkles size={16} color="#d78368" />
+                <Film size={16} color="#d78368" />
               </View>
               <View>
                 <Text style={styles.headerTitle}>Rediscover Your Past</Text>

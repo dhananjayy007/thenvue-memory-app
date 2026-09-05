@@ -175,23 +175,8 @@ export async function createMemory(
   if (body.length > MAX_MEMORY_CHARS) throw new Error(`Memories must be ${MAX_MEMORY_CHARS.toLocaleString()} characters or less.`)
   const captureTime = validateCaptureTime(capturedAt)
   const media = validateMediaInputs(mediaInputs, user.id)
-  const tags = await tagMemory(body)
-  const place = customPlace?.trim() || tags.places[0] || 'Home'
-
-  // Extract @mentions from text and merge with AI-detected people
+  const place = customPlace?.trim() || 'Home'
   const mentionedPeople = extractMentions(body)
-  const allPeople = [...new Set([...(tags.people || []), ...mentionedPeople])]
-
-  // Generate vector embedding safely server-side (does not throw or break saving on failure)
-  const embedding = await embedMemorySafe({
-    text: body,
-    summary: tags.summary,
-    people: allPeople,
-    place,
-    topics: tags.topics,
-    memoryType: tags.memoryType,
-    mood: tags.mood,
-  })
 
   const { data: createdMemory, error: memoryError } = await supabase
     .from('memories')
@@ -203,36 +188,17 @@ export async function createMemory(
       occurred_on: captureTime.date,
       occurred_time: captureTime.time,
       place,
-      people: allPeople,
-      topics: tags.topics,
-      summary: tags.summary,
-      memory_type: tags.memoryType,
-      mood: tags.mood,
-      embedding,
+      people: mentionedPeople,
+      topics: [],
+      summary: '',
+      memory_type: 'moment',
+      mood: 'calm',
+      embedding: null,
     })
     .select('id, title, body, occurred_on, occurred_time, place, people, topics, summary, memory_type, mood')
     .single()
 
   if (memoryError) throw new Error(memoryError.message)
-
-  // Auto-invite any @mentioned users who are registered on Thenvue
-  if (mentionedPeople.length > 0) {
-    try {
-      for (const mentionName of mentionedPeople) {
-        const matchingUsers = await searchUsersAction(mentionName)
-        const exactMatch = matchingUsers.find(
-          (u) =>
-            u.displayName.toLowerCase() === mentionName.toLowerCase() ||
-            u.email.toLowerCase().startsWith(mentionName.toLowerCase())
-        )
-        if (exactMatch && exactMatch.id !== user.id) {
-          await inviteParticipantsAction(createdMemory.id, [exactMatch.id]).catch(() => {})
-        }
-      }
-    } catch {
-      // Non-blocking auto-invite
-    }
-  }
 
   let createdMedia: MediaRow[] = []
   if (media.length > 0) {
@@ -257,7 +223,94 @@ export async function createMemory(
   }
 
   revalidatePath('/')
-  return rowToMemoryWithSignedMedia(supabase, { ...createdMemory, media: createdMedia } as MemoryRow)
+  const memoryObj = await rowToMemoryWithSignedMedia(supabase, { ...createdMemory, media: createdMedia } as MemoryRow)
+  return { ...memoryObj, isProcessing: true }
+}
+
+export async function enrichMemoryAction(memoryId: string, customPlace?: string): Promise<Memory | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: current, error: readErr } = await supabase
+    .from('memories')
+    .select(memoryColumns)
+    .eq('id', memoryId)
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (readErr || !current) return null
+
+  try {
+    const body = current.body || ''
+    const tags = await tagMemory(body)
+    const place = customPlace?.trim() || (current.place && current.place !== 'Home' ? current.place : (tags.places[0] || 'Home'))
+    const mentionedPeople = extractMentions(body)
+    const allPeople = [...new Set([...(tags.people || []), ...mentionedPeople])]
+
+    const embedding = await embedMemorySafe({
+      text: body,
+      summary: tags.summary,
+      people: allPeople,
+      place,
+      topics: tags.topics,
+      memoryType: tags.memoryType,
+      mood: tags.mood,
+    })
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('memories')
+      .update({
+        place,
+        people: allPeople,
+        topics: tags.topics,
+        summary: tags.summary,
+        memory_type: tags.memoryType,
+        mood: tags.mood,
+        embedding,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', memoryId)
+      .eq('user_id', user.id)
+      .select(memoryColumns)
+      .single()
+
+    if (updateErr || !updated) return null
+
+    // Auto-invite any @mentioned users
+    if (mentionedPeople.length > 0) {
+      try {
+        for (const mentionName of mentionedPeople) {
+          const matchingUsers = await searchUsersAction(mentionName)
+          const exactMatch = matchingUsers.find(
+            (u) =>
+              u.displayName.toLowerCase() === mentionName.toLowerCase() ||
+              u.email.toLowerCase().startsWith(mentionName.toLowerCase())
+          )
+          if (exactMatch && exactMatch.id !== user.id) {
+            await inviteParticipantsAction(memoryId, [exactMatch.id]).catch(() => {})
+          }
+        }
+      } catch {
+        // Non-blocking auto-invite
+      }
+    }
+
+    revalidatePath('/')
+    const memoryObj = await rowToMemoryWithSignedMedia(supabase, updated as MemoryRow, user.id)
+    return { ...memoryObj, isProcessing: false, processingStatus: 'completed' }
+  } catch (err) {
+    console.error('enrichMemoryAction error:', err)
+    const memoryObj = await rowToMemoryWithSignedMedia(supabase, current as MemoryRow, user.id)
+    return { ...memoryObj, isProcessing: false, processingStatus: 'failed' }
+  }
+}
+
+export async function retryEnrichmentAction(memoryId: string): Promise<Memory | null> {
+  return enrichMemoryAction(memoryId)
 }
 
 export async function getRediscoverAction(): Promise<import('@/lib/ai/rediscover').RediscoverResult | null> {
@@ -307,49 +360,25 @@ export async function createVoiceMemoryAction({
     throw new Error(`Audio upload failed: ${uploadError.message}`)
   }
 
-  // 2. Transcribe audio with Gemini (with resilience)
-  let transcript = ''
-  try {
-    const { transcribeAudio } = await import('@/lib/ai/provider')
-    transcript = await transcribeAudio(audioBase64, mimeType)
-  } catch (err) {
-    console.error('Audio transcription encountered an issue, preserving audio:', err)
-  }
+  const initialBody = `[Voice memory recorded on ${captureTime.date}]`
 
-  const body = transcript.trim() || `[Voice memory recorded on ${captureTime.date}]`
-
-  // 3. Run AI tagging & metadata extraction
-  const tags = await tagMemory(body)
-  const place = tags.places[0] || 'Home'
-
-  // 4. Generate vector embedding safely
-  const embedding = await embedMemorySafe({
-    text: body,
-    summary: tags.summary,
-    people: tags.people,
-    place,
-    topics: tags.topics,
-    memoryType: tags.memoryType || 'Voice',
-    mood: tags.mood,
-  })
-
-  // 5. Insert memory record
+  // 2. Insert memory record immediately (<100ms)
   const { data: createdMemory, error: memoryError } = await supabase
     .from('memories')
     .insert({
       user_id: user.id,
-      title: memoryTitle(body),
-      body,
+      title: 'Voice memory',
+      body: initialBody,
       occurred_at: new Date().toISOString(),
       occurred_on: captureTime.date,
       occurred_time: captureTime.time,
-      place,
-      people: tags.people,
-      topics: tags.topics,
-      summary: tags.summary,
+      place: 'Home',
+      people: [],
+      topics: ['voice'],
+      summary: '',
       memory_type: 'Voice',
-      mood: tags.mood,
-      embedding,
+      mood: 'calm',
+      embedding: null,
     })
     .select('id, title, body, occurred_on, occurred_time, place, people, topics, summary, memory_type, mood')
     .single()
@@ -359,7 +388,7 @@ export async function createVoiceMemoryAction({
     throw new Error(memoryError.message)
   }
 
-  // 6. Insert media record
+  // 3. Insert media record
   const { data: mediaData, error: mediaError } = await supabase
     .from('media')
     .insert({
@@ -380,10 +409,137 @@ export async function createVoiceMemoryAction({
   }
 
   revalidatePath('/')
-  return rowToMemoryWithSignedMedia(supabase, {
+  const memoryObj = await rowToMemoryWithSignedMedia(supabase, {
     ...createdMemory,
     media: [mediaData as MediaRow],
   } as MemoryRow)
+  return { ...memoryObj, isProcessing: true, processingStatus: 'processing' }
+}
+
+export async function processVoiceMemoryAction({
+  memoryId,
+  audioBase64,
+  mimeType = 'audio/webm',
+}: {
+  memoryId: string
+  audioBase64: string
+  mimeType?: string
+}): Promise<Memory | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: current, error: readErr } = await supabase
+    .from('memories')
+    .select(memoryColumns)
+    .eq('id', memoryId)
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (readErr || !current) return null
+
+  try {
+    // 1. Transcribe audio with Gemini
+    let transcript = ''
+    try {
+      const { transcribeAudio } = await import('@/lib/ai/provider')
+      transcript = await transcribeAudio(audioBase64, mimeType)
+    } catch (err) {
+      console.error('Audio transcription encountered an issue:', err)
+    }
+
+    const body = transcript.trim() || current.body || `[Voice memory recorded on ${current.occurred_on}]`
+
+    // 2. Tag & embed
+    const tags = await tagMemory(body)
+    const place = tags.places[0] || current.place || 'Home'
+
+    const embedding = await embedMemorySafe({
+      text: body,
+      summary: tags.summary,
+      people: tags.people,
+      place,
+      topics: tags.topics,
+      memoryType: 'Voice',
+      mood: tags.mood,
+    })
+
+    const title = transcript.trim() ? memoryTitle(body) : (current.title || 'Voice memory')
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('memories')
+      .update({
+        title,
+        body,
+        place,
+        people: tags.people,
+        topics: tags.topics,
+        summary: tags.summary,
+        memory_type: 'Voice',
+        mood: tags.mood,
+        embedding,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', memoryId)
+      .eq('user_id', user.id)
+      .select(memoryColumns)
+      .single()
+
+    if (updateErr || !updated) return null
+
+    revalidatePath('/')
+    const memoryObj = await rowToMemoryWithSignedMedia(supabase, updated as MemoryRow, user.id)
+    return { ...memoryObj, isProcessing: false, processingStatus: 'completed' }
+  } catch (err) {
+    console.error('processVoiceMemoryAction error:', err)
+    const memoryObj = await rowToMemoryWithSignedMedia(supabase, current as MemoryRow, user.id)
+    return { ...memoryObj, isProcessing: false, processingStatus: 'failed' }
+  }
+}
+
+export async function retryVoiceEnrichmentAction(memoryId: string): Promise<Memory | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  // 1. Fetch audio media record
+  const { data: media } = await supabase
+    .from('media')
+    .select('storage_path, media_type')
+    .eq('memory_id', memoryId)
+    .eq('user_id', user.id)
+    .eq('media_type', 'audio')
+    .maybeSingle()
+
+  if (!media?.storage_path) {
+    return retryEnrichmentAction(memoryId)
+  }
+
+  // 2. Download audio file
+  const { data: audioBlob, error: downloadErr } = await supabase.storage
+    .from('memory-audio')
+    .download(media.storage_path)
+
+  if (downloadErr || !audioBlob) {
+    console.error('Could not download audio for retry:', downloadErr)
+    return null
+  }
+
+  const arrayBuffer = await audioBlob.arrayBuffer()
+  const audioBase64 = Buffer.from(arrayBuffer).toString('base64')
+  const ext = media.storage_path.split('.').pop()?.toLowerCase() || 'webm'
+  const mimeType = ext === 'mp4' ? 'audio/mp4' : ext === 'ogg' ? 'audio/ogg' : ext === 'wav' ? 'audio/wav' : 'audio/webm'
+
+  return processVoiceMemoryAction({
+    memoryId,
+    audioBase64,
+    mimeType,
+  })
 }
 
 export async function deleteMemory(id: string): Promise<void> {
@@ -1584,7 +1740,8 @@ export async function createImportJobAction(totalAssets: number): Promise<{ jobI
 }
 
 export type RawPastPhotoInput = {
-  base64: string
+  storagePath?: string
+  base64?: string
   fileName: string
   fileSize: number
   mimeType?: string
@@ -1596,6 +1753,7 @@ export type RawPastPhotoInput = {
   nativeCreationDate?: string | null
   latitude?: number | null
   longitude?: number | null
+  hash?: string
 }
 
 export async function uploadAndProcessPastPhotosAction({
@@ -1617,29 +1775,36 @@ export async function uploadAndProcessPastPhotosAction({
 
   if (photos.length === 0) throw new Error('No photos provided.')
 
-  // 1. Double check server quota
+  // 1. Server quota check
   const quota = await getPastImportQuotaAction()
   if (photos.length > quota.remaining) {
     throw new Error(`Cannot import ${photos.length} photos. You have ${quota.remaining} past photo slots remaining.`)
   }
 
-  // 2. Detect exact duplicates using SHA-256 content hashes
+  // 2. Detect duplicates
   const seenHashes = new Set<string>()
-  const validPhotos: (RawPastPhotoInput & { hash: string; buffer: Buffer })[] = []
+  const validPhotos: (RawPastPhotoInput & { computedHash: string; buffer?: Buffer })[] = []
   let duplicateCount = 0
   let failedCount = 0
 
   for (const photo of photos) {
     try {
-      const buffer = Buffer.from(photo.base64, 'base64')
-      const hash = createHash('sha256').update(buffer).digest('hex')
+      let computedHash = photo.hash || ''
+      let buffer: Buffer | undefined = undefined
 
-      if (seenHashes.has(hash)) {
+      if (photo.base64) {
+        buffer = Buffer.from(photo.base64, 'base64')
+        computedHash = createHash('sha256').update(buffer).digest('hex')
+      } else if (!computedHash && photo.storagePath) {
+        computedHash = createHash('sha256').update(`${photo.storagePath}-${photo.fileSize}`).digest('hex')
+      }
+
+      if (computedHash && seenHashes.has(computedHash)) {
         duplicateCount++
         continue
       }
-      seenHashes.add(hash)
-      validPhotos.push({ ...photo, hash, buffer })
+      if (computedHash) seenHashes.add(computedHash)
+      validPhotos.push({ ...photo, computedHash, buffer })
     } catch {
       failedCount++
     }
@@ -1649,96 +1814,141 @@ export async function uploadAndProcessPastPhotosAction({
     return { candidates: [], duplicateCount, failedCount }
   }
 
-  // 3. Extract authoritative capture date & metadata using strict priority
+  // 3. Process uploads & metadata (Direct client uploads or parallel server uploads)
   const { extractPhotoMetadata, logPhotoDateExtraction } = await import('@/lib/photo-date-extractor')
   const uploadedAssets: ImportedAsset[] = []
+  const storagePathsForSigning: string[] = []
+
+  // Batch upload any photos that have raw buffers (concurrency limit 5)
+  const UPLOAD_CONCURRENCY = 5
+  for (let i = 0; i < validPhotos.length; i += UPLOAD_CONCURRENCY) {
+    const chunk = validPhotos.slice(i, i + UPLOAD_CONCURRENCY)
+    await Promise.all(
+      chunk.map(async (photo) => {
+        try {
+          const ext = photo.fileName.split('.').pop()?.toLowerCase() || 'jpg'
+          let storagePath = photo.storagePath
+          const contentType = photo.mimeType || (ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg')
+
+          if (!storagePath && photo.buffer) {
+            storagePath = `${user.id}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
+            const { error: uploadErr } = await supabase.storage
+              .from('memory-photos')
+              .upload(storagePath, photo.buffer, { contentType, upsert: false })
+
+            if (uploadErr) {
+              failedCount++
+              return
+            }
+          }
+
+          if (!storagePath) {
+            failedCount++
+            return
+          }
+
+          // Metadata extraction
+          let extracted = {
+            capturedAt: photo.capturedAt || null,
+            capturedDate: photo.capturedDate || null,
+            capturedTime: photo.capturedTime || null,
+            dateSource: photo.dateSource || 'unknown',
+            dateStatus: photo.dateStatus || 'unknown',
+            importedAt: new Date().toISOString(),
+            latitude: photo.latitude ?? null,
+            longitude: photo.longitude ?? null,
+          }
+
+          if (photo.buffer) {
+            const serverExtracted = extractPhotoMetadata({
+              buffer: photo.buffer,
+              fileName: photo.fileName,
+              nativeCreationDate: photo.nativeCreationDate,
+            })
+            extracted = {
+              capturedAt: serverExtracted.capturedAt || photo.capturedAt || null,
+              capturedDate: serverExtracted.capturedDate || photo.capturedDate || null,
+              capturedTime: serverExtracted.capturedTime || photo.capturedTime || null,
+              dateSource: serverExtracted.dateSource || photo.dateSource || 'unknown',
+              dateStatus: serverExtracted.dateStatus || photo.dateStatus || 'unknown',
+              importedAt: serverExtracted.importedAt,
+              latitude: serverExtracted.latitude ?? photo.latitude ?? null,
+              longitude: serverExtracted.longitude ?? photo.longitude ?? null,
+            }
+          }
+
+          const assetId = crypto.randomUUID()
+          storagePathsForSigning.push(storagePath)
+
+          // Insert into imported_assets
+          await supabase.from('imported_assets').insert({
+            id: assetId,
+            user_id: user.id,
+            import_job_id: jobId,
+            storage_path: storagePath,
+            source_type: 'past_import',
+            captured_at: extracted.capturedAt,
+            latitude: extracted.latitude,
+            longitude: extracted.longitude,
+            mime_type: contentType,
+            file_size: photo.fileSize,
+            content_hash: photo.computedHash,
+            processing_status: 'processed',
+          })
+
+          uploadedAssets.push({
+            id: assetId,
+            userId: user.id,
+            importJobId: jobId,
+            storagePath,
+            sourceType: 'past_import',
+            capturedAt: extracted.capturedAt,
+            capturedDate: extracted.capturedDate,
+            capturedTime: extracted.capturedTime,
+            dateSource: extracted.dateSource,
+            dateStatus: extracted.dateStatus as any,
+            importedAt: extracted.importedAt,
+            latitude: extracted.latitude,
+            longitude: extracted.longitude,
+            mimeType: contentType,
+            fileSize: photo.fileSize,
+            contentHash: photo.computedHash,
+            processingStatus: 'processed',
+            createdAt: new Date().toISOString(),
+          })
+        } catch {
+          failedCount++
+        }
+      })
+    )
+  }
+
+  // P4: Batch signed URL creation in 1 single roundtrip
   const signedUrlMap = new Map<string, string>()
-
-  for (const photo of validPhotos) {
+  if (storagePathsForSigning.length > 0) {
     try {
-      const ext = photo.fileName.split('.').pop()?.toLowerCase() || 'jpg'
-      const storagePath = `${user.id}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
-      const contentType = photo.mimeType || (ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg')
-
-      // Authoritative server-side extraction from buffer and filename
-      const extracted = extractPhotoMetadata({
-        buffer: photo.buffer,
-        fileName: photo.fileName,
-        nativeCreationDate: photo.nativeCreationDate,
-      })
-
-      const effectiveCapturedAt = extracted.capturedAt || photo.capturedAt || null
-      const effectiveCapturedDate = extracted.capturedDate || photo.capturedDate || null
-      const effectiveCapturedTime = extracted.capturedTime || photo.capturedTime || null
-      const effectiveDateSource = extracted.dateSource || photo.dateSource || 'unknown'
-      const effectiveDateStatus = extracted.dateStatus || photo.dateStatus || 'unknown'
-      const effectiveLat = extracted.latitude ?? photo.latitude ?? null
-      const effectiveLon = extracted.longitude ?? photo.longitude ?? null
-
-      const { error: uploadErr } = await supabase.storage
+      const { data: signedUrls } = await supabase.storage
         .from('memory-photos')
-        .upload(storagePath, photo.buffer, { contentType, upsert: false })
+        .createSignedUrls(storagePathsForSigning, 3600)
 
-      if (uploadErr) {
-        failedCount++
-        continue
+      if (signedUrls) {
+        for (const item of signedUrls) {
+          if (item.signedUrl && item.path) {
+            signedUrlMap.set(item.path, item.signedUrl)
+          }
+        }
       }
-
-      // Generate signed URL
-      const { data: signed } = await supabase.storage
-        .from('memory-photos')
-        .createSignedUrl(storagePath, 3600)
-
-      const assetId = crypto.randomUUID()
-      const assetUrl = signed?.signedUrl || ''
-      if (assetUrl) signedUrlMap.set(storagePath, assetUrl)
-
-      // Insert into imported_assets table
-      await supabase.from('imported_assets').insert({
-        id: assetId,
-        user_id: user.id,
-        import_job_id: jobId,
-        storage_path: storagePath,
-        source_type: 'past_import',
-        captured_at: effectiveCapturedAt,
-        latitude: effectiveLat,
-        longitude: effectiveLon,
-        mime_type: contentType,
-        file_size: photo.fileSize,
-        content_hash: photo.hash,
-        processing_status: 'processed',
-      })
-
-      uploadedAssets.push({
-        id: assetId,
-        userId: user.id,
-        importJobId: jobId,
-        storagePath,
-        sourceType: 'past_import',
-        capturedAt: effectiveCapturedAt,
-        capturedDate: effectiveCapturedDate,
-        capturedTime: effectiveCapturedTime,
-        dateSource: effectiveDateSource,
-        dateStatus: effectiveDateStatus,
-        importedAt: extracted.importedAt,
-        latitude: effectiveLat,
-        longitude: effectiveLon,
-        mimeType: contentType,
-        fileSize: photo.fileSize,
-        contentHash: photo.hash,
-        processingStatus: 'processed',
-        createdAt: new Date().toISOString(),
-        url: assetUrl,
-      })
     } catch {
-      failedCount++
+      // Fallback
     }
   }
 
+  for (const asset of uploadedAssets) {
+    asset.url = signedUrlMap.get(asset.storagePath) || ''
+  }
+
   // 4. Deterministic Clustering by captured date and time proximity
-  // NEVER merge photos from different dates solely because they were uploaded together!
   uploadedAssets.sort((a, b) => {
-    // Known dates first, sorted chronologically
     if (a.capturedDate && b.capturedDate) {
       const dateCmp = a.capturedDate.localeCompare(b.capturedDate)
       if (dateCmp !== 0) return dateCmp
@@ -1771,13 +1981,11 @@ export async function uploadAndProcessPastPhotosAction({
     const bothUnknown = !asset.capturedDate && !prevAsset.capturedDate
     const nearbyAcrossMidnight = timeDiffHours !== null && timeDiffHours <= 4
 
-    // Cluster if on the same date within 4h, or crossing midnight within 4h, or small batch of unknown dates
     if (((sameDate && (timeDiffHours === null || timeDiffHours <= 4)) || nearbyAcrossMidnight) && currentCluster.length < 10) {
       currentCluster.push(asset)
     } else if (bothUnknown && currentCluster.length < 8) {
       currentCluster.push(asset)
     } else {
-      // Different dates / times -> MUST be separate clusters
       rawClusters.push(currentCluster)
       currentCluster = [asset]
     }
@@ -1786,32 +1994,35 @@ export async function uploadAndProcessPastPhotosAction({
     rawClusters.push(currentCluster)
   }
 
-  // 5. AI Understanding for each cluster (AI NEVER overrides deterministic capture date)
+  // P1: Parallel Gemini Cluster Understanding with Concurrency Limit 3
   const candidates: MemoryClusterCandidate[] = []
+  const CLUSTER_CONCURRENCY = 3
 
-  for (const clusterAssets of rawClusters) {
-    const clusterId = crypto.randomUUID()
-    const firstAssetWithDate = clusterAssets.find((a) => a.capturedDate) || clusterAssets[0]
-    const clusterDate = firstAssetWithDate?.capturedDate || null
-    const clusterTime = firstAssetWithDate?.capturedTime || null
-    const clusterDateStatus = clusterAssets.some((a) => a.dateStatus === 'exact')
-      ? 'exact'
-      : clusterAssets.some((a) => a.dateStatus === 'inferred')
-      ? 'inferred'
-      : 'unknown'
-    const clusterDateSource = firstAssetWithDate?.dateSource || 'unknown'
+  for (let i = 0; i < rawClusters.length; i += CLUSTER_CONCURRENCY) {
+    const clusterChunk = rawClusters.slice(i, i + CLUSTER_CONCURRENCY)
+    const chunkCandidates = await Promise.all(
+      clusterChunk.map(async (clusterAssets) => {
+        const clusterId = crypto.randomUUID()
+        const firstAssetWithDate = clusterAssets.find((a) => a.capturedDate) || clusterAssets[0]
+        const clusterDate = firstAssetWithDate?.capturedDate || null
+        const clusterTime = firstAssetWithDate?.capturedTime || null
+        const clusterDateStatus = clusterAssets.some((a) => a.dateStatus === 'exact')
+          ? 'exact'
+          : clusterAssets.some((a) => a.dateStatus === 'inferred')
+          ? 'inferred'
+          : 'unknown'
+        const clusterDateSource = firstAssetWithDate?.dateSource || 'unknown'
 
-    let inferredTitle = clusterAssets.length === 1 ? 'Past Moment' : `${clusterAssets.length} Photos Moment`
-    let inferredSummary = `Imported past moment with ${clusterAssets.length} photo${clusterAssets.length === 1 ? '' : 's'}.`
-    let inferredPlace = ''
-    let inferredPeople: string[] = []
-    let inferredTopics = ['past photos', 'rediscover']
-    let inferredMood = 'reflective'
+        let inferredTitle = clusterAssets.length === 1 ? 'Past Moment' : `${clusterAssets.length} Photos Moment`
+        let inferredSummary = `Imported past moment with ${clusterAssets.length} photo${clusterAssets.length === 1 ? '' : 's'}.`
+        let inferredPlace = ''
+        let inferredPeople: string[] = []
+        let inferredTopics = ['past photos', 'rediscover']
+        let inferredMood = 'reflective'
 
-    // Run AI analysis prompt (only for title/summary/topics/location/mood)
-    try {
-      const { generateStructured } = await import('@/lib/ai/provider')
-      const clusterPrompt = `A user is rediscovering past photos in Thenvue.
+        try {
+          const { generateStructured } = await import('@/lib/ai/provider')
+          const clusterPrompt = `A user is rediscovering past photos in Thenvue.
 Cluster size: ${clusterAssets.length} photos.
 Known capture date: ${clusterDate || 'Unknown date (user will set date)'}.
 Coordinates available: ${firstAssetWithDate?.latitude ? `${firstAssetWithDate.latitude}, ${firstAssetWithDate.longitude}` : 'None'}.
@@ -1823,79 +2034,82 @@ Generate structured memory understanding for this past moment:
 - Topics (2-4 keywords)
 - Mood (one of joyful, peaceful, reflective, nostalgic, energetic, calm)`
 
-      const schema = {
-        type: 'OBJECT',
-        properties: {
-          title: { type: 'STRING' },
-          summary: { type: 'STRING' },
-          location: { type: 'STRING' },
-          topics: { type: 'ARRAY', items: { type: 'STRING' } },
-          mood: { type: 'STRING' },
-        },
-        required: ['title', 'summary'],
-      }
+          const schema = {
+            type: 'OBJECT',
+            properties: {
+              title: { type: 'STRING' },
+              summary: { type: 'STRING' },
+              location: { type: 'STRING' },
+              topics: { type: 'ARRAY', items: { type: 'STRING' } },
+              mood: { type: 'STRING' },
+            },
+            required: ['title', 'summary'],
+          }
 
-      const aiResult: any = await generateStructured(clusterPrompt, schema)
-      if (aiResult?.title) inferredTitle = aiResult.title
-      if (aiResult?.summary) inferredSummary = aiResult.summary
-      if (aiResult?.location) inferredPlace = aiResult.location
-      if (aiResult?.topics && Array.isArray(aiResult.topics)) inferredTopics = aiResult.topics
-      if (aiResult?.mood) inferredMood = aiResult.mood
-    } catch {
-      // Graceful fallback if AI is offline
-    }
+          const aiResult: any = await generateStructured(clusterPrompt, schema)
+          if (aiResult?.title) inferredTitle = aiResult.title
+          if (aiResult?.summary) inferredSummary = aiResult.summary
+          if (aiResult?.location) inferredPlace = aiResult.location
+          if (aiResult?.topics && Array.isArray(aiResult.topics)) inferredTopics = aiResult.topics
+          if (aiResult?.mood) inferredMood = aiResult.mood
+        } catch {
+          // Fallback if AI is offline
+        }
 
-    // Save cluster record
-    await supabase.from('memory_clusters').insert({
-      id: clusterId,
-      user_id: user.id,
-      import_job_id: jobId,
-      title: inferredTitle,
-      summary: inferredSummary,
-      suggested_date: clusterDate,
-      location_name: inferredPlace,
-      latitude: firstAssetWithDate?.latitude || null,
-      longitude: firstAssetWithDate?.longitude || null,
-      people: inferredPeople,
-      topics: inferredTopics,
-      mood: inferredMood,
-      photo_count: clusterAssets.length,
-      confidence: 0.9,
-      status: 'pending',
-    })
+        // Save cluster record
+        await supabase.from('memory_clusters').insert({
+          id: clusterId,
+          user_id: user.id,
+          import_job_id: jobId,
+          title: inferredTitle,
+          summary: inferredSummary,
+          suggested_date: clusterDate,
+          location_name: inferredPlace,
+          latitude: firstAssetWithDate?.latitude || null,
+          longitude: firstAssetWithDate?.longitude || null,
+          people: inferredPeople,
+          topics: inferredTopics,
+          mood: inferredMood,
+          photo_count: clusterAssets.length,
+          confidence: 0.9,
+          status: 'pending',
+        })
 
-    logPhotoDateExtraction({
-      fileName: `${clusterAssets.length} photos in cluster`,
-      extractedCapturedAt: firstAssetWithDate?.capturedAt,
-      importedAt: firstAssetWithDate?.importedAt,
-      finalClusterDate: clusterDate,
-      finalMemoryDate: clusterDate,
-      dateSource: clusterDateSource,
-      dateStatus: clusterDateStatus,
-    })
+        logPhotoDateExtraction({
+          fileName: `${clusterAssets.length} photos in cluster`,
+          extractedCapturedAt: firstAssetWithDate?.capturedAt,
+          importedAt: firstAssetWithDate?.importedAt,
+          finalClusterDate: clusterDate,
+          finalMemoryDate: clusterDate,
+          dateSource: clusterDateSource,
+          dateStatus: clusterDateStatus,
+        })
 
-    candidates.push({
-      id: clusterId,
-      userId: user.id,
-      importJobId: jobId,
-      title: inferredTitle,
-      summary: inferredSummary,
-      suggestedDate: clusterDate,
-      suggestedTime: clusterTime,
-      dateSource: clusterDateSource,
-      dateStatus: clusterDateStatus,
-      locationName: inferredPlace,
-      latitude: firstAssetWithDate?.latitude || null,
-      longitude: firstAssetWithDate?.longitude || null,
-      people: inferredPeople,
-      topics: inferredTopics,
-      mood: inferredMood,
-      photoCount: clusterAssets.length,
-      confidence: 0.9,
-      status: 'pending',
-      assets: clusterAssets,
-      createdAt: new Date().toISOString(),
-    })
+        return {
+          id: clusterId,
+          userId: user.id,
+          importJobId: jobId,
+          title: inferredTitle,
+          summary: inferredSummary,
+          suggestedDate: clusterDate,
+          suggestedTime: clusterTime,
+          dateSource: clusterDateSource,
+          dateStatus: clusterDateStatus as any,
+          locationName: inferredPlace,
+          latitude: firstAssetWithDate?.latitude || null,
+          longitude: firstAssetWithDate?.longitude || null,
+          people: inferredPeople,
+          topics: inferredTopics,
+          mood: inferredMood,
+          photoCount: clusterAssets.length,
+          confidence: 0.9,
+          status: 'pending' as const,
+          assets: clusterAssets,
+          createdAt: new Date().toISOString(),
+        }
+      })
+    )
+    candidates.push(...chunkCandidates)
   }
 
   // Update import job status to review
@@ -1942,7 +2156,7 @@ export async function saveRediscoveredMemoryAction({
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  // Requirement 11: Strong validation — NEVER silently use today's date
+  // Date validation
   const cleanDate = date?.trim()
   if (!cleanDate || !/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
     throw new Error('A valid capture date (YYYY-MM-DD) is required to save this rediscovered memory. Please select a date.')
@@ -1953,25 +2167,12 @@ export async function saveRediscoveredMemoryAction({
 
   const effectiveTitle = title.trim() || 'Rediscovered Memory'
   const effectiveBody = story?.trim() || `Rediscovered memory from ${cleanDate} with ${storagePaths.length} photo${storagePaths.length === 1 ? '' : 's'}.`
+  const finalTopics = topics.length > 0 ? topics : ['past photos', 'rediscover']
+  const finalPeople = people
+  const finalPlace = place.trim()
+  const finalMood = mood || 'reflective'
 
-  // 1. AI Tagging & Embedding
-  const tags = await tagMemory(effectiveBody)
-  const finalTopics = topics.length > 0 ? topics : tags.topics
-  const finalPeople = people.length > 0 ? people : tags.people
-  const finalPlace = place.trim() || tags.places[0] || 'Home'
-  const finalMood = mood || tags.mood || 'reflective'
-
-  const embedding = await embedMemorySafe({
-    text: effectiveBody,
-    summary: tags.summary,
-    people: finalPeople,
-    place: finalPlace,
-    topics: finalTopics,
-    memoryType: 'moment',
-    mood: finalMood,
-  })
-
-  // 2. Insert into regular Thenvue memories table with exact captured date & time
+  // P2: Save Core Memory Record Immediately (<100ms) with processing_status = 'processing'
   const occurredAtIso = `${cleanDate}T${cleanTime}.000Z`
 
   const { data: memoryData, error: memError } = await supabase
@@ -1986,45 +2187,52 @@ export async function saveRediscoveredMemoryAction({
       place: finalPlace,
       people: finalPeople,
       topics: finalTopics,
-      summary: tags.summary || effectiveBody.slice(0, 120),
+      summary: effectiveBody.slice(0, 120),
       memory_type: 'moment',
       mood: finalMood,
-      embedding,
+      processing_status: 'processing',
     })
-    .select('id, user_id, title, body, occurred_on, occurred_time, place, people, topics, summary, memory_type, mood, created_at')
+    .select('id, user_id, title, body, occurred_on, occurred_time, place, people, topics, summary, memory_type, mood, created_at, processing_status')
     .single()
 
   if (memError || !memoryData) throw new Error(memError?.message || 'Could not save rediscovered memory.')
 
-  // 3. Attach media with source_type = 'past_import'
+  // Attach media in parallel
   const mediaRows: MediaRow[] = []
-  for (const path of storagePaths) {
-    const fileName = path.split('/').pop() || 'photo.jpg'
-    const { data: mRow } = await supabase
-      .from('media')
-      .insert({
-        memory_id: memoryData.id,
-        user_id: user.id,
-        storage_path: path,
-        media_type: 'image',
-        file_name: fileName,
-        file_size: 150000,
-        source_type: 'past_import',
+  if (storagePaths.length > 0) {
+    const insertedMedia = await Promise.all(
+      storagePaths.map(async (path) => {
+        const fileName = path.split('/').pop() || 'photo.jpg'
+        const { data: mRow } = await supabase
+          .from('media')
+          .insert({
+            memory_id: memoryData.id,
+            user_id: user.id,
+            storage_path: path,
+            media_type: 'image',
+            file_name: fileName,
+            file_size: 150000,
+            source_type: 'past_import',
+          })
+          .select('id, memory_id, user_id, storage_path, media_type, file_name, file_size, created_at, source_type')
+          .single()
+
+        if (mRow) {
+          await supabase
+            .from('imported_assets')
+            .update({ memory_id: memoryData.id, media_id: mRow.id })
+            .eq('storage_path', path)
+            .eq('user_id', user.id)
+        }
+        return mRow
       })
-      .select('id, memory_id, user_id, storage_path, media_type, file_name, file_size, created_at, source_type')
-      .single()
-
-    if (mRow) mediaRows.push(mRow as any)
-
-    // Update imported_assets pointer if exists
-    await supabase
-      .from('imported_assets')
-      .update({ memory_id: memoryData.id, media_id: mRow?.id })
-      .eq('storage_path', path)
-      .eq('user_id', user.id)
+    )
+    for (const m of insertedMedia) {
+      if (m) mediaRows.push(m as any)
+    }
   }
 
-  // 4. Mark cluster approved
+  // Mark cluster approved
   if (clusterId) {
     await supabase
       .from('memory_clusters')
@@ -2034,10 +2242,16 @@ export async function saveRediscoveredMemoryAction({
 
   revalidatePath('/')
 
-  return rowToMemoryWithSignedMedia(supabase, {
+  const initialMemory = await rowToMemoryWithSignedMedia(supabase, {
     ...memoryData,
     media: mediaRows,
   } as any, user.id)
+
+  // Attach isProcessing and processingStatus for instant UI response
+  initialMemory.isProcessing = true
+  initialMemory.processingStatus = 'processing'
+
+  return initialMemory
 }
 
 export async function deleteImportedAssetAction(storagePath: string): Promise<void> {

@@ -77,6 +77,11 @@ export function Capture({
     photosRef.current = photos
   }, [photos])
 
+  useEffect(() => {
+    // Automatically trigger GPS location detection on web mount
+    detectLocation()
+  }, [])
+
   useEffect(() => () => {
     photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.preview))
     if (audioUrl) URL.revokeObjectURL(audioUrl)
@@ -85,6 +90,47 @@ export function Capture({
       mediaRecorderRef.current.stop()
     }
   }, [audioUrl])
+
+  const detectLocation = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      return
+    }
+    setDetectingLocation(true)
+    setPhotoError(null)
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { 'Accept-Language': 'en' } }
+          )
+          const data = await res.json()
+          if (data && data.address) {
+            const addr = data.address
+            const namePart = addr.neighbourhood || addr.suburb || addr.road || ''
+            const city = addr.city || addr.town || addr.village || addr.county || ''
+            const state = addr.state || addr.country || ''
+            const parts = [namePart, city, state].filter(Boolean)
+            const resolved = Array.from(new Set(parts)).join(', ') || `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`
+            setCustomPlace(resolved)
+            setShowPlaceInput(false)
+          }
+        } catch {
+          // Fallback to coordinates
+          setCustomPlace('Current Location')
+          setShowPlaceInput(false)
+        } finally {
+          setDetectingLocation(false)
+        }
+      },
+      (err) => {
+        console.warn('Geolocation error:', err)
+        setDetectingLocation(false)
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    )
+  }
 
   const startRecording = async () => {
     setMicError(null)
@@ -244,43 +290,6 @@ export function Capture({
     })
   }
 
-  const detectLocation = () => {
-    if (!navigator.geolocation) {
-      setPhotoError('Geolocation is not supported by your browser.')
-      return
-    }
-    setDetectingLocation(true)
-    setPhotoError(null)
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-          const data = await res.json()
-          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.suburb || ''
-          const state = data.address?.state || ''
-          const loc = [city, state].filter(Boolean).join(', ') || `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`
-          setCustomPlace(loc)
-          setShowPlaceInput(false)
-        } catch {
-          setCustomPlace('Current Location')
-          setShowPlaceInput(false)
-        } finally {
-          setDetectingLocation(false)
-        }
-      },
-      (err) => {
-        console.warn('Geolocation error:', err)
-        setDetectingLocation(false)
-        setPhotoError('Could not access your location. You can type it manually.')
-      },
-      { timeout: 8000 }
-    )
-  }
-
   const handleSave = async () => {
     if (mode === 'voice') {
       await handleVoiceSave()
@@ -322,25 +331,26 @@ export function Capture({
       } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const media: NewMediaInput[] = []
-      for (const photo of photos) {
-        const ext = photo.isPdf ? 'pdf' : 'webp'
-        const contentType = photo.isPdf ? 'application/pdf' : 'image/webp'
-        const path = `${user.id}/${crypto.randomUUID()}.${ext}`
-        
-        const { error: uploadError } = await supabase.storage
-          .from('memory-photos')
-          .upload(path, photo.file, { contentType, cacheControl: '3600', upsert: false })
-        if (uploadError) throw uploadError
+      const media: NewMediaInput[] = await Promise.all(
+        photos.map(async (photo) => {
+          const ext = photo.isPdf ? 'pdf' : 'webp'
+          const contentType = photo.isPdf ? 'application/pdf' : 'image/webp'
+          const path = `${user.id}/${crypto.randomUUID()}.${ext}`
 
-        uploadedPaths.push(path)
-        media.push({
-          storagePath: path,
-          mediaType: photo.isPdf ? 'document' : 'image',
-          fileName: photo.originalName,
-          fileSize: photo.file.size,
+          const { error: uploadError } = await supabase.storage
+            .from('memory-photos')
+            .upload(path, photo.file, { contentType, cacheControl: '3600', upsert: false })
+          if (uploadError) throw uploadError
+
+          uploadedPaths.push(path)
+          return {
+            storagePath: path,
+            mediaType: photo.isPdf ? 'document' : 'image',
+            fileName: photo.originalName,
+            fileSize: photo.file.size,
+          }
         })
-      }
+      )
 
       await onSave(media, capturedAt, placeToSave)
     } catch (error) {
@@ -553,6 +563,11 @@ export function Capture({
                   Done
                 </button>
               </div>
+            ) : detectingLocation ? (
+              <span className="capture-active-chip capture-active-chip-loading">
+                <MapPin size={13} className="spin-slow" />
+                <span>Detecting location...</span>
+              </span>
             ) : customPlace ? (
               <span className="capture-active-chip" onClick={() => setShowPlaceInput(true)}>
                 <MapPin size={13} />
@@ -650,16 +665,20 @@ export function Capture({
               </button>
               <button
                 type="button"
-                className={customPlace || showPlaceInput ? 'capture-tool-active' : ''}
+                className={customPlace || showPlaceInput || detectingLocation ? 'capture-tool-active' : ''}
                 onClick={() => {
-                  setShowPlaceInput((prev) => !prev)
-                  if (showDateInput) setShowDateInput(false)
+                  if (!customPlace && !showPlaceInput && !detectingLocation) {
+                    detectLocation()
+                  } else {
+                    setShowPlaceInput((prev) => !prev)
+                    if (showDateInput) setShowDateInput(false)
+                  }
                 }}
-                title="Add or edit location"
+                title={detectingLocation ? 'Detecting GPS location...' : 'Add or edit location'}
                 aria-label="Location"
               >
                 <MapPin size={18} />
-                <span className="capture-tool-label">Location</span>
+                <span className="capture-tool-label">{detectingLocation ? 'GPS...' : 'Location'}</span>
               </button>
               <button
                 type="button"

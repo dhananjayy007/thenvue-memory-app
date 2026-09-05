@@ -1,5 +1,6 @@
-import React from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native'
+import React, { memo } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native'
+import { Image } from 'expo-image'
 import { ChevronRight, MapPin } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
@@ -53,7 +54,15 @@ export function MemoryRow({
       </View>
 
       {photo ? (
-        <Image source={{ uri: photo.url }} style={styles.thumbnail} />
+        <Image
+          source={{ uri: photo.url, cacheKey: photo.url }}
+          style={styles.thumbnail}
+          contentFit="cover"
+          transition={0}
+          recyclingKey={photo.url}
+          priority="high"
+          cachePolicy="memory-disk"
+        />
       ) : null}
 
       <ChevronRight size={14} color={colors.textMuted} />

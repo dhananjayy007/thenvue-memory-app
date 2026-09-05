@@ -239,26 +239,28 @@ export function PerspectiveComposerModal({
       } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const mediaItems: NewMediaInput[] = []
+      // 1. Upload photos / docs in parallel
+      const photoMediaItems: NewMediaInput[] = await Promise.all(
+        photos.map(async (photo) => {
+          const ext = photo.isPdf ? 'pdf' : 'webp'
+          const contentType = photo.isPdf ? 'application/pdf' : 'image/webp'
+          const path = `${user.id}/${crypto.randomUUID()}.${ext}`
 
-      // 1. Upload photos / docs
-      for (const photo of photos) {
-        const ext = photo.isPdf ? 'pdf' : 'webp'
-        const contentType = photo.isPdf ? 'application/pdf' : 'image/webp'
-        const path = `${user.id}/${crypto.randomUUID()}.${ext}`
+          const { error: uploadError } = await supabase.storage
+            .from('memory-photos')
+            .upload(path, photo.file, { contentType, cacheControl: '3600', upsert: false })
+          if (uploadError) throw uploadError
 
-        const { error: uploadError } = await supabase.storage
-          .from('memory-photos')
-          .upload(path, photo.file, { contentType, cacheControl: '3600', upsert: false })
-        if (uploadError) throw uploadError
-
-        mediaItems.push({
-          storagePath: path,
-          mediaType: photo.isPdf ? 'document' : 'image',
-          fileName: photo.originalName,
-          fileSize: photo.file.size,
+          return {
+            storagePath: path,
+            mediaType: photo.isPdf ? ('document' as const) : ('image' as const),
+            fileName: photo.originalName,
+            fileSize: photo.file.size,
+          }
         })
-      }
+      )
+
+      const mediaItems: NewMediaInput[] = [...photoMediaItems]
 
       let base64Audio: string | undefined
       // 2. Upload voice recording if present

@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 16,
     paddingTop: 24,
-    paddingBottom: 110,
+    paddingBottom: 130,
   },
   heading: {
     marginBottom: 20,

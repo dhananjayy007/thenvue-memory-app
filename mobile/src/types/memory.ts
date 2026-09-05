@@ -120,6 +120,8 @@ export type UserSearchResult = {
   email: string
 }
 
+export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
 export type Memory = {
   id: string
   userId?: string
@@ -135,6 +137,8 @@ export type Memory = {
   memoryType: MemoryType
   media: MediaAsset[]
   isOwner?: boolean
+  isProcessing?: boolean
+  processingStatus?: ProcessingStatus
   sourceMemoryId?: string | null
   sharedContext?: string | null
   participants?: MemoryParticipant[]

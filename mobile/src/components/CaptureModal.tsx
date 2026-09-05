@@ -12,9 +12,13 @@ import {
   Platform,
   KeyboardAvoidingView,
   Dimensions,
+  InteractionManager,
+  Keyboard,
 } from 'react-native'
 import { Audio } from 'expo-av'
 import * as ImagePicker from 'expo-image-picker'
+import * as DocumentPicker from 'expo-document-picker'
+import * as Location from 'expo-location'
 import {
   Camera,
   Image as ImageIcon,
@@ -22,15 +26,21 @@ import {
   X,
   Square,
   Sparkles,
+  MapPin,
+  CalendarDays,
+  Check,
+  FileText,
 } from 'lucide-react-native'
 import type { ThemeColors } from '../theme/colors'
 import { formatAudioDuration } from '../lib/format'
+import { MentionAutocomplete } from './MentionAutocomplete'
 
 type PendingPhoto = {
   uri: string
   base64: string
   fileName: string
   fileSize: number
+  isPdf?: boolean
 }
 
 const { height } = Dimensions.get('window')
@@ -47,12 +57,30 @@ export function CaptureModal({
   initialMode?: 'text' | 'voice' | 'photo'
   colors: ThemeColors
   onClose: () => void
-  onSaveText: (draft: string, photos: { base64: string; fileName: string; fileSize: number }[]) => Promise<void>
-  onSaveVoice: (audioBase64: string, fileName: string, fileSize: number) => Promise<void>
+  onSaveText: (
+    draft: string,
+    photos: { base64: string; fileName: string; fileSize: number }[],
+    options?: { customPlace?: string; customDate?: string; customTime?: string }
+  ) => Promise<void>
+  onSaveVoice: (
+    audioBase64: string,
+    fileName: string,
+    fileSize: number,
+    options?: { customPlace?: string; customDate?: string; customTime?: string }
+  ) => Promise<void>
 }) {
   const [draft, setDraft] = useState('')
   const [photos, setPhotos] = useState<PendingPhoto[]>([])
   const [saving, setSaving] = useState(false)
+  const inputRef = useRef<TextInput | null>(null)
+
+  // Location & Date
+  const [showPlaceInput, setShowPlaceInput] = useState(false)
+  const [customPlace, setCustomPlace] = useState('')
+  const [locating, setLocating] = useState(false)
+  const [showDateInput, setShowDateInput] = useState(false)
+  const [customDate, setCustomDate] = useState('')
+  const [customTime, setCustomTime] = useState('')
 
   // Voice state
   const [recording, setRecording] = useState<Audio.Recording | null>(null)
@@ -62,6 +90,48 @@ export function CaptureModal({
   const [recordedBase64, setRecordedBase64] = useState<string | null>(null)
   const timerRef = useRef<any>(null)
 
+  const fetchCurrentGpsLocation = async (promptPermission = false) => {
+    try {
+      setLocating(true)
+      let { status } = await Location.getForegroundPermissionsAsync()
+      if (status !== 'granted' && promptPermission) {
+        const permissionRes = await Location.requestForegroundPermissionsAsync()
+        status = permissionRes.status
+      }
+
+      if (status === 'granted') {
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        })
+
+        if (position?.coords) {
+          const geocoded = await Location.reverseGeocodeAsync({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          })
+
+          if (geocoded && geocoded.length > 0) {
+            const place = geocoded[0]
+            const namePart = place.name && !/^\d+$/.test(place.name) ? place.name : place.street || ''
+            const locality = place.district || place.subregion || place.city || ''
+            const region = place.region || place.country || ''
+
+            const parts = [namePart, locality, region].filter(Boolean)
+            const resolved = Array.from(new Set(parts)).join(', ')
+
+            if (resolved) {
+              setCustomPlace(resolved)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log('GPS fetch error:', err)
+    } finally {
+      setLocating(false)
+    }
+  }
+
   useEffect(() => {
     if (visible) {
       setDraft('')
@@ -70,13 +140,29 @@ export function CaptureModal({
       setRecordedBase64(null)
       setRecordDuration(0)
       setIsRecording(false)
+      setShowPlaceInput(false)
+      setCustomPlace('')
+      setShowDateInput(false)
+      setCustomDate('')
+      setCustomTime('')
 
-      if (initialMode === 'photo') {
-        handlePickPhoto()
-      } else if (initialMode === 'voice') {
-        startRecording()
+      // Defer GPS and focus after modal slide animation completes for 60fps smoothness
+      const task = InteractionManager.runAfterInteractions(() => {
+        fetchCurrentGpsLocation(false)
+        if (initialMode === 'text') {
+          setTimeout(() => inputRef.current?.focus(), 120)
+        } else if (initialMode === 'photo') {
+          handlePickPhoto()
+        } else if (initialMode === 'voice') {
+          startRecording()
+        }
+      })
+
+      return () => {
+        task.cancel()
       }
     } else {
+      Keyboard.dismiss()
       stopRecordingCleanup()
     }
   }, [visible, initialMode])
@@ -104,13 +190,13 @@ export function CaptureModal({
         base64: true,
       })
 
-      if (!result.canceled && result.assets[0]?.base64) {
+      if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0]
         setPhotos((prev) => [
           ...prev,
           {
             uri: asset.uri,
-            base64: asset.base64!,
+            base64: asset.base64 || '',
             fileName: asset.fileName || `camera_${Date.now()}.jpg`,
             fileSize: asset.fileSize || 100000,
           },
@@ -121,7 +207,7 @@ export function CaptureModal({
     }
   }
 
-  // Photo Library
+  // Pick Photo from Gallery
   const handlePickPhoto = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -133,22 +219,57 @@ export function CaptureModal({
         base64: true,
       })
 
-      if (!result.canceled) {
-        const newPhotos: PendingPhoto[] = []
-        for (const asset of result.assets) {
-          if (asset.base64) {
-            newPhotos.push({
-              uri: asset.uri,
-              base64: asset.base64,
-              fileName: asset.fileName || `photo_${Date.now()}.jpg`,
-              fileSize: asset.fileSize || 100000,
-            })
-          }
-        }
-        setPhotos((prev) => [...prev, ...newPhotos])
+      if (!result.canceled && result.assets) {
+        const mapped: PendingPhoto[] = result.assets.map((asset) => ({
+          uri: asset.uri,
+          base64: asset.base64 || '',
+          fileName: asset.fileName || `photo_${Date.now()}.jpg`,
+          fileSize: asset.fileSize || 100000,
+          isPdf: false,
+        }))
+        setPhotos((prev) => [...prev, ...mapped])
       }
     } catch (err) {
       console.error('Pick photo error:', err)
+    }
+  }
+
+  // Pick Document / PDF
+  const handlePickDocument = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      })
+
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        const asset = res.assets[0]
+        let base64 = ''
+        if (asset.uri) {
+          try {
+            const fileData = await fetch(asset.uri)
+            const blob = await fileData.blob()
+            const reader = new FileReader()
+            base64 = await new Promise((resolve) => {
+              reader.onloadend = () => {
+                const r = reader.result as string
+                resolve(r.split(',')[1] || '')
+              }
+              reader.readAsDataURL(blob)
+            })
+          } catch {}
+        }
+        const newPhoto: PendingPhoto = {
+          uri: asset.uri,
+          base64,
+          fileName: asset.name || 'document.pdf',
+          fileSize: asset.size || 150000,
+          isPdf: asset.mimeType?.includes('pdf') || asset.name?.toLowerCase().endsWith('.pdf'),
+        }
+        setPhotos((prev) => [...prev, newPhoto])
+      }
+    } catch (err) {
+      console.warn('Pick document error:', err)
     }
   }
 
@@ -210,8 +331,14 @@ export function CaptureModal({
 
     setSaving(true)
     try {
+      const options = {
+        customPlace: customPlace.trim() || undefined,
+        customDate: customDate.trim() || undefined,
+        customTime: customTime.trim() || undefined,
+      }
+
       if (recordedBase64 && !draft.trim()) {
-        await onSaveVoice(recordedBase64, `voice_${Date.now()}.m4a`, 200000)
+        await onSaveVoice(recordedBase64, `voice_${Date.now()}.m4a`, 200000, options)
       } else {
         await onSaveText(
           draft,
@@ -219,7 +346,8 @@ export function CaptureModal({
             base64: p.base64,
             fileName: p.fileName,
             fileSize: p.fileSize,
-          }))
+          })),
+          options
         )
       }
       onClose()
@@ -234,6 +362,11 @@ export function CaptureModal({
     setPhotos((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const handleClose = () => {
+    Keyboard.dismiss()
+    onClose()
+  }
+
   const now = new Date()
   const dateFormatted = now.toLocaleDateString('en-US', {
     month: 'long',
@@ -242,40 +375,82 @@ export function CaptureModal({
   })
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.overlay}
       >
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
 
         <View style={[styles.bottomSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <Text style={[styles.closeText, { color: colors.textMuted }]}>Close</Text>
+          {/* Header Row: Close on left, Date pill on right */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
+              <Text style={[styles.closeText, { color: colors.textSecondary }]}>Close</Text>
             </TouchableOpacity>
-            <Text style={[styles.dateText, { color: colors.textMuted }]}>{dateFormatted}</Text>
+
+            <TouchableOpacity
+              style={[styles.datePill, { borderColor: colors.border, backgroundColor: colors.cardSecondary }]}
+              onPress={() => {
+                setShowDateInput((prev) => !prev)
+                if (showPlaceInput) setShowPlaceInput(false)
+              }}
+              activeOpacity={0.8}
+            >
+              <CalendarDays size={13} color={colors.textMuted} />
+              <Text style={[styles.datePillText, { color: colors.textSecondary }]}>{dateFormatted}</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Text Input */}
-          <ScrollView style={styles.scrollArea} keyboardShouldPersistTaps="handled">
+          {/* Text & Content Area */}
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Prompt */}
+            <Text style={[styles.promptText, { color: colors.accent }]}>How was your day?</Text>
+
+            {/* Serif Title */}
+            <Text style={[styles.titleHeading, { color: colors.text }]}>What happened?</Text>
+
+            {/* Subtitle / Text Input */}
             <TextInput
+              ref={inputRef}
               style={[styles.textarea, { color: colors.text }]}
-              placeholder="Write something you want to remember..."
+              placeholder="Type @ to tag a friend"
               placeholderTextColor={colors.textMuted}
               multiline
-              autoFocus
               value={draft}
               onChangeText={setDraft}
             />
 
-            {/* Attached Photos Strip */}
+            {/* Live @Mention Autocomplete Dropdown */}
+            <MentionAutocomplete
+              text={draft}
+              colors={colors}
+              onSelectUser={(u) => {
+                const handle = u.email ? u.email.split('@')[0] : u.displayName.toLowerCase().replace(/\s+/g, '')
+                setDraft((prev) => prev.replace(/@[a-zA-Z0-9_-]*$/, `@${handle} `))
+              }}
+            />
+
+            {/* Attached Photos & Documents Strip */}
             {photos.length > 0 && (
               <View style={styles.photoStrip}>
                 {photos.map((photo, i) => (
                   <View key={i} style={styles.photoThumb}>
-                    <Image source={{ uri: photo.uri }} style={styles.photoImg} />
+                    {photo.isPdf ? (
+                      <View style={[styles.pdfThumbBox, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
+                        <FileText size={18} color={colors.accent} />
+                        <Text style={[styles.pdfThumbText, { color: colors.textMuted }]} numberOfLines={1}>
+                          {photo.fileName}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Image source={{ uri: photo.uri }} style={styles.photoImg} />
+                    )}
                     <TouchableOpacity
                       style={styles.photoRemoveBtn}
                       onPress={() => removePhoto(i)}
@@ -323,44 +498,177 @@ export function CaptureModal({
                 )}
               </View>
             )}
+
+            {/* Location input row / active chip */}
+            {showPlaceInput ? (
+              <View style={[styles.inlineInputRow, { borderColor: colors.border, backgroundColor: colors.cardSecondary }]}>
+                <MapPin size={14} color={colors.accent} />
+                <TextInput
+                  style={[styles.inlineTextInput, { color: colors.text }]}
+                  placeholder="Enter location (e.g., Central Park, NYC)"
+                  placeholderTextColor={colors.textMuted}
+                  value={customPlace}
+                  onChangeText={setCustomPlace}
+                  autoFocus
+                />
+                <TouchableOpacity onPress={() => setShowPlaceInput(false)} style={styles.inlineDoneBtn}>
+                  <Check size={14} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+            ) : locating ? (
+              <View style={styles.activeChipsRow}>
+                <View style={[styles.activeChip, { backgroundColor: 'rgba(229, 115, 115, 0.1)', borderColor: 'rgba(229, 115, 115, 0.25)' }]}>
+                  <ActivityIndicator size="small" color={colors.accent} />
+                  <Text style={[styles.activeChipText, { color: colors.accent }]}>Detecting location...</Text>
+                </View>
+              </View>
+            ) : customPlace ? (
+              <View style={styles.activeChipsRow}>
+                <View style={[styles.activeChip, { backgroundColor: 'rgba(229, 115, 115, 0.15)', borderColor: 'rgba(229, 115, 115, 0.3)' }]}>
+                  <MapPin size={12} color={colors.accent} />
+                  <Text style={[styles.activeChipText, { color: colors.accent }]}>{customPlace}</Text>
+                  <TouchableOpacity onPress={() => setCustomPlace('')}>
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Date input row / active chip */}
+            {showDateInput ? (
+              <View style={[styles.inlineInputRow, { borderColor: colors.border, backgroundColor: colors.cardSecondary }]}>
+                <CalendarDays size={14} color={colors.accent} />
+                <TextInput
+                  style={[styles.inlineTextInput, { color: colors.text }]}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textMuted}
+                  value={customDate}
+                  onChangeText={setCustomDate}
+                />
+                <TextInput
+                  style={[styles.inlineTimeInput, { color: colors.text }]}
+                  placeholder="HH:MM"
+                  placeholderTextColor={colors.textMuted}
+                  value={customTime}
+                  onChangeText={setCustomTime}
+                />
+                <TouchableOpacity onPress={() => setShowDateInput(false)} style={styles.inlineDoneBtn}>
+                  <Check size={14} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+            ) : customDate ? (
+              <View style={styles.activeChipsRow}>
+                <View style={[styles.activeChip, { backgroundColor: 'rgba(229, 115, 115, 0.15)', borderColor: 'rgba(229, 115, 115, 0.3)' }]}>
+                  <CalendarDays size={12} color={colors.accent} />
+                  <Text style={[styles.activeChipText, { color: colors.accent }]}>
+                    {customDate} {customTime ? `· ${customTime}` : ''}
+                  </Text>
+                  <TouchableOpacity onPress={() => { setCustomDate(''); setCustomTime('') }}>
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
           </ScrollView>
 
-          {/* Tools Bar */}
-          <View style={[styles.toolsBar, { borderTopColor: colors.border }]}>
-            <TouchableOpacity style={[styles.toolBtn, { borderColor: colors.border }]} onPress={handlePickPhoto}>
-              <ImageIcon size={14} color={colors.textMuted} />
-              <Text style={[styles.toolText, { color: colors.textMuted }]}>Photos</Text>
+          {/* 5 Symmetrical Rounded Tool Tiles */}
+          <View style={styles.tilesRow}>
+            {/* Tile 1: Photo */}
+            <TouchableOpacity
+              style={[styles.toolTile, { borderColor: colors.border, backgroundColor: colors.cardSecondary }]}
+              onPress={handleSnapCamera}
+              activeOpacity={0.7}
+              accessibilityLabel="Photo"
+            >
+              <Camera size={20} color={colors.textSecondary} strokeWidth={1.8} />
+              <Text style={[styles.toolTileLabel, { color: colors.textMuted }]}>Photo</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.toolBtn, { borderColor: colors.border }]} onPress={handleSnapCamera}>
-              <Camera size={14} color={colors.textMuted} />
-              <Text style={[styles.toolText, { color: colors.textMuted }]}>Camera</Text>
+            {/* Tile 2: Gallery / Doc */}
+            <TouchableOpacity
+              style={[styles.toolTile, { borderColor: colors.border, backgroundColor: colors.cardSecondary }]}
+              onPress={handlePickPhoto}
+              onLongPress={handlePickDocument}
+              activeOpacity={0.7}
+              accessibilityLabel="Gallery or Doc"
+            >
+              <ImageIcon size={20} color={colors.textSecondary} strokeWidth={1.8} />
+              <Text style={[styles.toolTileLabel, { color: colors.textMuted }]}>Gallery</Text>
             </TouchableOpacity>
 
-            {!isRecording && !recordedUri ? (
-              <TouchableOpacity style={[styles.toolBtn, { borderColor: colors.border }]} onPress={startRecording}>
-                <Mic size={14} color={colors.textMuted} />
-                <Text style={[styles.toolText, { color: colors.textMuted }]}>Speak</Text>
-              </TouchableOpacity>
-            ) : null}
+            {/* Tile 3: Voice */}
+            <TouchableOpacity
+              style={[
+                styles.toolTile,
+                { borderColor: isRecording || recordedUri ? colors.danger : colors.border, backgroundColor: colors.cardSecondary },
+                isRecording ? { backgroundColor: 'rgba(239, 68, 68, 0.15)' } : null,
+              ]}
+              onPress={isRecording ? stopRecording : startRecording}
+              activeOpacity={0.7}
+              accessibilityLabel="Voice"
+            >
+              <Mic size={20} color={isRecording ? colors.danger : colors.textSecondary} strokeWidth={1.8} />
+              <Text style={[styles.toolTileLabel, { color: isRecording ? colors.danger : colors.textMuted }]}>Voice</Text>
+            </TouchableOpacity>
+
+            {/* Tile 4: Location */}
+            <TouchableOpacity
+              style={[
+                styles.toolTile,
+                { borderColor: customPlace || showPlaceInput || locating ? colors.accent : colors.border, backgroundColor: colors.cardSecondary },
+                customPlace || showPlaceInput || locating ? { backgroundColor: 'rgba(229, 115, 115, 0.12)' } : null,
+              ]}
+              onPress={() => {
+                if (!customPlace && !showPlaceInput && !locating) {
+                  fetchCurrentGpsLocation(true)
+                } else {
+                  setShowPlaceInput((prev) => !prev)
+                  if (showDateInput) setShowDateInput(false)
+                }
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Location"
+            >
+              {locating ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <MapPin size={20} color={customPlace || showPlaceInput ? colors.accent : colors.textSecondary} strokeWidth={1.8} />
+              )}
+              <Text style={[styles.toolTileLabel, { color: customPlace || showPlaceInput || locating ? colors.accent : colors.textMuted }]}>
+                {locating ? 'GPS...' : 'Location'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Tile 5: Date */}
+            <TouchableOpacity
+              style={[
+                styles.toolTile,
+                { borderColor: customDate || showDateInput ? colors.accent : colors.border, backgroundColor: colors.cardSecondary },
+                customDate || showDateInput ? { backgroundColor: 'rgba(229, 115, 115, 0.12)' } : null,
+              ]}
+              onPress={() => {
+                if (!customDate) {
+                  const n = new Date()
+                  setCustomDate([n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-'))
+                  setCustomTime(`${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`)
+                }
+                setShowDateInput((prev) => !prev)
+                if (showPlaceInput) setShowPlaceInput(false)
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Date"
+            >
+              <CalendarDays size={20} color={customDate || showDateInput ? colors.accent : colors.textSecondary} strokeWidth={1.8} />
+              <Text style={[styles.toolTileLabel, { color: customDate || showDateInput ? colors.accent : colors.textMuted }]}>Date</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* AI Status / Inference */}
-          {saving && (
-            <View style={styles.inferenceRow}>
-              <Sparkles size={14} color={colors.accent} />
-              <Text style={[styles.inferenceText, { color: colors.accent }]}>
-                Remembering people, places, and connections...
-              </Text>
-            </View>
-          )}
-
-          {/* Save Button */}
+          {/* Primary Save Memory Button */}
           <TouchableOpacity
             style={[
               styles.saveBtn,
               {
-                backgroundColor: colors.accent,
+                backgroundColor: '#724335',
                 opacity: saving || (!draft.trim() && photos.length === 0 && !recordedBase64) ? 0.5 : 1,
               },
             ]}
@@ -369,7 +677,7 @@ export function CaptureModal({
             activeOpacity={0.85}
           >
             {saving ? (
-              <ActivityIndicator color="#211d1a" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.saveBtnText}>Save Memory</Text>
             )}
@@ -390,43 +698,96 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bottomSheet: {
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
     borderBottomWidth: 0,
-    maxHeight: height * 0.92,
-    paddingHorizontal: 18,
-    paddingTop: 14,
+    maxHeight: height * 0.94,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 14,
   },
   closeBtn: {
     paddingVertical: 4,
-    paddingHorizontal: 6,
+    paddingHorizontal: 2,
   },
   closeText: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '400',
   },
-  dateText: {
+  datePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  datePillText: {
     fontSize: 12,
+    fontWeight: '400',
   },
   scrollArea: {
-    maxHeight: 280,
+    maxHeight: 250,
+  },
+  scrollContent: {
+    paddingBottom: 10,
+  },
+  promptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  promptText: {
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  titleHeading: {
+    fontSize: 26,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontWeight: '400',
+    letterSpacing: -0.4,
+    marginBottom: 6,
   },
   textarea: {
-    minHeight: 180,
-    fontSize: 21,
-    lineHeight: 30,
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    paddingTop: 16,
-    paddingBottom: 16,
+    minHeight: 40,
+    fontSize: 15,
+    lineHeight: 22,
+    paddingTop: 4,
+    paddingBottom: 12,
     textAlignVertical: 'top',
+  },
+  tagPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  tagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  tagPillPlus: {
+    fontSize: 13,
+  },
+  tagPillText: {
+    fontSize: 12,
+    fontWeight: '400',
   },
   photoStrip: {
     flexDirection: 'row',
@@ -444,6 +805,20 @@ const styles = StyleSheet.create({
   photoImg: {
     width: '100%',
     height: '100%',
+  },
+  pdfThumbBox: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+  },
+  pdfThumbText: {
+    fontSize: 9,
+    marginTop: 4,
+    textAlign: 'center',
   },
   photoRemoveBtn: {
     position: 'absolute',
@@ -483,30 +858,74 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolsBar: {
+  inlineInputRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginVertical: 6,
   },
-  toolBtn: {
+  inlineTextInput: {
+    flex: 1,
+    fontSize: 13,
+    padding: 0,
+  },
+  inlineTimeInput: {
+    width: 60,
+    fontSize: 13,
+    padding: 0,
+  },
+  inlineDoneBtn: {
+    padding: 4,
+  },
+  activeChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginVertical: 6,
+  },
+  activeChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  toolText: {
+  activeChipText: {
     fontSize: 11,
+    fontWeight: '500',
+  },
+  tilesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  toolTile: {
+    flex: 1,
+    height: 60,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  toolTileLabel: {
+    fontSize: 10,
+    marginTop: 4,
+    fontWeight: '400',
   },
   inferenceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   inferenceText: {
     fontSize: 11,
@@ -514,14 +933,18 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     height: 48,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+  },
+  saveBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   saveBtnText: {
-    color: '#211d1a',
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
   },
 })

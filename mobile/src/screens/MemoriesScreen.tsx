@@ -5,48 +5,67 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
+  TouchableOpacity,
+  Dimensions,
 } from 'react-native'
-import { Search } from 'lucide-react-native'
+import { Search, ArrowLeft } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
-import { Header } from '../components/Header'
 import { MemoryCard } from '../components/MemoryCard'
+
+const { width } = Dimensions.get('window')
+const cardWidth = (width - 40) / 2
 
 export function MemoriesScreen({
   memories,
   colors,
-  dark,
-  onToggleTheme,
+  onBack,
   onSelectMemory,
 }: {
   memories: Memory[]
   colors: ThemeColors
-  dark: boolean
-  onToggleTheme: () => void
+  dark?: boolean
+  onToggleTheme?: () => void
+  onBack?: () => void
   onSelectMemory: (m: Memory) => void
 }) {
   const [query, setQuery] = useState('')
 
   const filteredMemories = useMemo(() => {
-    if (!query.trim()) return memories
-    const q = query.toLowerCase()
-    return memories.filter(
-      (m) =>
-        `${m.title} ${m.text} ${m.place} ${m.people.join(' ')} ${m.topics.join(' ')}`
-          .toLowerCase()
-          .includes(q)
-    )
+    let list = memories
+    if (query.trim()) {
+      const q = query.toLowerCase()
+      list = memories.filter(
+        (m) =>
+          `${m.title} ${m.text} ${m.place} ${m.people.join(' ')} ${m.topics.join(' ')}`
+            .toLowerCase()
+            .includes(q)
+      )
+    }
+
+    return list.sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+      if (dateDiff !== 0) return dateDiff
+      return (b.time || '').localeCompare(a.time || '')
+    })
   }, [memories, query])
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header
-        title="Memories"
-        subtitle={`${memories.length} moments kept`}
-        colors={colors}
-        dark={dark}
-        onToggleTheme={onToggleTheme}
-      />
+      {/* Header with Back button */}
+      <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
+        {onBack ? (
+          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+            <ArrowLeft size={20} color={colors.text} />
+          </TouchableOpacity>
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.screenTitle, { color: colors.text }]}>All Memories</Text>
+          <Text style={[styles.screenSubtitle, { color: colors.textMuted }]}>
+            {memories.length} moment{memories.length === 1 ? '' : 's'} kept
+          </Text>
+        </View>
+      </View>
 
       <View style={styles.searchSection}>
         <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -61,7 +80,7 @@ export function MemoriesScreen({
         </View>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {filteredMemories.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No memories found</Text>
@@ -70,9 +89,13 @@ export function MemoriesScreen({
             </Text>
           </View>
         ) : (
-          filteredMemories.map((m) => (
-            <MemoryCard key={m.id} memory={m} colors={colors} onPress={() => onSelectMemory(m)} />
-          ))
+          <View style={styles.grid}>
+            {filteredMemories.map((m) => (
+              <View key={m.id} style={{ width: cardWidth }}>
+                <MemoryCard memory={m} colors={colors} onPress={() => onSelectMemory(m)} />
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
     </View>
@@ -83,8 +106,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backBtn: {
+    padding: 4,
+  },
+  screenTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  screenSubtitle: {
+    fontSize: 12,
+    marginTop: 1,
+  },
   searchSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 4,
   },
@@ -92,21 +135,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    height: 44,
-    borderRadius: 14,
+    height: 42,
+    borderRadius: 12,
     borderWidth: 1,
     gap: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 90,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 110,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   emptyCard: {
     padding: 28,

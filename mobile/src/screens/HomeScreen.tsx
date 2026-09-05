@@ -10,9 +10,10 @@ import {
   Platform,
 } from 'react-native'
 import {
-  Edit3,
+  PenLine,
   Mic,
   Camera,
+  Film,
   Sparkles,
   ArrowRight,
   ChevronRight,
@@ -21,6 +22,7 @@ import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
 import { MemoryRow } from '../components/MemoryRow'
 import { MemoryCard } from '../components/MemoryCard'
+import { CustomBrainIcon } from '../components/CustomBrainIcon'
 
 const { width } = Dimensions.get('window')
 const cardWidth = (width - 40) / 2
@@ -37,6 +39,9 @@ export function HomeScreen({
   onOpenCapture,
   onOpenVoice,
   onNavigateTimeline,
+  onNavigateMemories,
+  onNavigateAsk,
+  onOpenRediscover,
   onAddPhoto,
 }: {
   memories: Memory[]
@@ -50,6 +55,9 @@ export function HomeScreen({
   onOpenCapture: () => void
   onOpenVoice: () => void
   onNavigateTimeline: () => void
+  onNavigateMemories?: () => void
+  onNavigateAsk?: () => void
+  onOpenRediscover?: () => void
   onAddPhoto?: (m: Memory) => void
 }) {
 
@@ -77,8 +85,16 @@ export function HomeScreen({
     String(now.getDate()).padStart(2, '0'),
   ].join('-')
 
-  const todayMemories = useMemo(() => memories.filter((m) => m.date === todayISO), [memories, todayISO])
-  const recentMemories = useMemo(() => memories.slice(0, 6), [memories])
+  const sortedMemories = useMemo(() => {
+    return [...memories].sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+      if (dateDiff !== 0) return dateDiff
+      return (b.time || '').localeCompare(a.time || '')
+    })
+  }, [memories])
+
+  const todayMemories = useMemo(() => sortedMemories.filter((m) => m.date === todayISO), [sortedMemories, todayISO])
+  const recentMemories = useMemo(() => sortedMemories.slice(0, 6), [sortedMemories])
 
   return (
     <ScrollView
@@ -98,12 +114,12 @@ export function HomeScreen({
           Your life, remembered for you
         </Text>
 
-
         <TouchableOpacity
           style={[styles.reflectionButton, { borderColor: colors.border }]}
+          onPress={onNavigateAsk}
           activeOpacity={0.7}
         >
-          <Sparkles size={12} color={colors.accent} />
+          <CustomBrainIcon size={14} color={colors.accent} />
           <Text style={[styles.reflectionText, { color: colors.text }]}>
             {now.toLocaleString('default', { month: 'long' })} reflection
           </Text>
@@ -116,7 +132,7 @@ export function HomeScreen({
         activeOpacity={0.8}
         onPress={onOpenCapture}
       >
-        <Edit3 size={18} color={colors.accent} />
+        <PenLine size={18} color={colors.accent} />
         <Text style={[styles.promptText, { color: colors.textMuted }]}>
           Write something you want to remember...
         </Text>
@@ -126,7 +142,7 @@ export function HomeScreen({
       {/* Quick Actions */}
       <View style={styles.quickActions}>
         <TouchableOpacity style={styles.quickActionBtn} onPress={onOpenCapture}>
-          <Edit3 size={14} color={colors.textMuted} />
+          <PenLine size={14} color={colors.textMuted} />
           <Text style={[styles.quickActionText, { color: colors.textMuted }]}>Write</Text>
         </TouchableOpacity>
 
@@ -139,6 +155,13 @@ export function HomeScreen({
           <Camera size={14} color={colors.textMuted} />
           <Text style={[styles.quickActionText, { color: colors.textMuted }]}>Add photo</Text>
         </TouchableOpacity>
+
+        {onOpenRediscover && (
+          <TouchableOpacity style={styles.quickActionBtn} onPress={onOpenRediscover}>
+            <Film size={14} color={colors.accent} />
+            <Text style={[styles.quickActionText, { color: colors.accent }]}>Rediscover</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Today Section */}
@@ -175,7 +198,7 @@ export function HomeScreen({
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Your recent memories</Text>
           <TouchableOpacity
             style={styles.seeAllBtn}
-            onPress={onNavigateTimeline}
+            onPress={onNavigateMemories || onNavigateTimeline}
             activeOpacity={0.7}
           >
             <Text style={[styles.seeAllText, { color: colors.accent }]}>View all</Text>
@@ -197,7 +220,6 @@ export function HomeScreen({
             </View>
           ))}
         </View>
-
       </View>
     </ScrollView>
   )
@@ -210,7 +232,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 16,
     paddingTop: 24,
-    paddingBottom: 110,
+    paddingBottom: 130,
   },
   heading: {
     marginBottom: 8,

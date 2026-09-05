@@ -2,6 +2,7 @@
   "expo": {
     "name": "Thenvue",
     "slug": "thenvue",
+    "scheme": "thenvue",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -57,7 +58,8 @@
           "photosPermission": "Allow Thenvue to access your photos to attach them to your memories."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

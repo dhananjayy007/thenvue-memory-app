@@ -22,13 +22,14 @@ import {
   createImportJobAction,
   uploadAndProcessPastPhotosAction,
   saveRediscoveredMemoryAction,
+  enrichMemoryAction,
   type RawPastPhotoInput,
 } from '@/app/memories/actions'
 import { extractPhotoMetadata } from '@/lib/photo-date-extractor'
+import { createClient } from '@/lib/supabase/client'
 
 type FilePreview = {
   file: File
-  base64: string
   previewUrl: string
   fileName: string
   fileSize: number
@@ -38,6 +39,8 @@ type FilePreview = {
   dateSource?: string | null
   dateStatus?: 'exact' | 'inferred' | 'unknown'
   nativeCreationDate?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export function RediscoverImportModal({
@@ -98,17 +101,9 @@ export function RediscoverImportModal({
     for (const file of allowedFiles) {
       if (!file.type.startsWith('image/')) continue
 
-      // Read buffer & base64
+      // Read buffer for EXIF only (NO Base64 conversion)
       const arrayBuffer = await file.arrayBuffer()
       const uint8 = new Uint8Array(arrayBuffer)
-      
-      // Convert to base64
-      let binary = ''
-      const len = uint8.byteLength
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(uint8[i])
-      }
-      const b64 = btoa(binary)
       const previewUrl = URL.createObjectURL(file)
 
       // Extract metadata with strict priority (EXIF -> Filename -> Unknown)
@@ -120,7 +115,6 @@ export function RediscoverImportModal({
 
       previews.push({
         file,
-        base64: b64,
         previewUrl,
         fileName: file.name,
         fileSize: file.size,
@@ -130,6 +124,8 @@ export function RediscoverImportModal({
         dateSource: extracted.dateSource,
         dateStatus: extracted.dateStatus,
         nativeCreationDate: null,
+        latitude: extracted.latitude ?? null,
+        longitude: extracted.longitude ?? null,
       })
     }
 
@@ -151,29 +147,68 @@ export function RediscoverImportModal({
     setErrorMessage(null)
 
     try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
       // Step 1: Create Job
       setProcessingStep(1)
       setProcessingStatus(`Validating ${selectedFiles.length} past photo${selectedFiles.length === 1 ? '' : 's'} with server quota...`)
       const { jobId } = await createImportJobAction(selectedFiles.length)
 
-      // Step 2: Upload & Hash Duplicates
+      // Step 2: Direct parallel upload to Supabase Storage (P0 & P3: Concurrency limit 5)
       setProcessingStep(2)
-      setProcessingStatus('Uploading photos & extracting authoritative capture dates...')
+      setProcessingStatus('Uploading photos directly to storage...')
 
-      const rawInputs: RawPastPhotoInput[] = selectedFiles.map((f) => ({
-        base64: f.base64,
-        fileName: f.fileName,
-        fileSize: f.fileSize,
-        mimeType: f.file.type,
-        capturedAt: f.capturedAt,
-        capturedDate: f.capturedDate,
-        capturedTime: f.capturedTime,
-        dateSource: f.dateSource,
-        dateStatus: f.dateStatus,
-        nativeCreationDate: f.nativeCreationDate,
-      }))
+      const rawInputs: RawPastPhotoInput[] = []
+      const UPLOAD_CONCURRENCY = 5
 
-      // Step 3: Cluster & Understand
+      for (let i = 0; i < selectedFiles.length; i += UPLOAD_CONCURRENCY) {
+        const chunk = selectedFiles.slice(i, i + UPLOAD_CONCURRENCY)
+        const chunkResults = await Promise.all(
+          chunk.map(async (f) => {
+            const ext = f.fileName.split('.').pop()?.toLowerCase() || 'jpg'
+            const storagePath = `rediscover/${user.id}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${ext}`
+            const contentType = f.file.type || 'image/jpeg'
+
+            const { error: uploadError } = await supabase.storage
+              .from('memory-photos')
+              .upload(storagePath, f.file, { contentType, upsert: false })
+
+            if (uploadError) {
+              console.warn('Storage upload error for photo:', f.fileName, uploadError)
+              return null
+            }
+
+            return {
+              storagePath,
+              fileName: f.fileName,
+              fileSize: f.fileSize,
+              mimeType: contentType,
+              capturedAt: f.capturedAt,
+              capturedDate: f.capturedDate,
+              capturedTime: f.capturedTime,
+              dateSource: f.dateSource,
+              dateStatus: f.dateStatus,
+              nativeCreationDate: f.nativeCreationDate,
+              latitude: f.latitude,
+              longitude: f.longitude,
+            }
+          })
+        )
+
+        for (const res of chunkResults) {
+          if (res) rawInputs.push(res)
+        }
+      }
+
+      if (rawInputs.length === 0) {
+        throw new Error('Failed to upload past photos to storage.')
+      }
+
+      // Step 3: Cluster & Understand via lightweight metadata payload (<10KB)
       setProcessingStep(3)
       setProcessingStatus('Clustering moments & generating AI memory understanding...')
 
@@ -202,6 +237,7 @@ export function RediscoverImportModal({
     setSavingCandidateId(candidate.id)
     setErrorMessage(null)
     try {
+      // P2: Save core memory immediately (<300ms)
       const savedMemory = await saveRediscoveredMemoryAction({
         clusterId: candidate.id,
         title: candidate.title,
@@ -215,7 +251,11 @@ export function RediscoverImportModal({
         storagePaths: candidate.assets.map((a) => a.storagePath),
       })
 
+      // Add to timeline immediately with processing state
       onMemoryCreated(savedMemory)
+
+      // Trigger background AI enrichment (non-blocking)
+      enrichMemoryAction(savedMemory.id).catch((e) => console.warn('Background enrichment error:', e))
 
       // Remove from candidate list
       setCandidates((prev) => prev.filter((c) => c.id !== candidate.id))

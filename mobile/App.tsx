@@ -8,9 +8,11 @@ import {
   Text,
   ActivityIndicator,
   Alert,
+  Platform,
+  Linking,
 } from 'react-native'
-import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { Clock, Plus, User } from 'lucide-react-native'
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Home, Clock, Plus, User } from 'lucide-react-native'
 import { CustomBrainIcon } from './src/components/CustomBrainIcon'
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js'
 
@@ -20,7 +22,9 @@ import type { Memory, MemoryPerspective } from './src/types/memory'
 import {
   fetchMemories,
   createMemory,
+  enrichMemoryMobile,
   createVoiceMemory,
+  processVoiceMemoryMobile,
   deleteMemory,
   addPhotoToMemory,
   fetchNotifications,
@@ -32,6 +36,7 @@ import { Header } from './src/components/Header'
 import { AuthScreen } from './src/screens/AuthScreen'
 import { HomeScreen } from './src/screens/HomeScreen'
 import { TimelineScreen } from './src/screens/TimelineScreen'
+import { MemoriesScreen } from './src/screens/MemoriesScreen'
 import { AskScreen } from './src/screens/AskScreen'
 import { PeopleScreen } from './src/screens/PeopleScreen'
 import { PlacesScreen } from './src/screens/PlacesScreen'
@@ -50,6 +55,17 @@ import { NotificationModal } from './src/components/NotificationModal'
 import { RediscoverModal } from './src/components/RediscoverModal'
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <MainContent />
+    </SafeAreaProvider>
+  )
+}
+
+function MainContent() {
+  const insets = useSafeAreaInsets()
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16)
+
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
@@ -57,7 +73,7 @@ export default function App() {
   const [dark, setDark] = useState(true)
   const colors = dark ? darkColors : lightColors
 
-  const [currentTab, setCurrentTab] = useState<'home' | 'timeline' | 'ask' | 'people' | 'places' | 'you'>('home')
+  const [currentTab, setCurrentTab] = useState<'home' | 'timeline' | 'memories' | 'ask' | 'people' | 'places' | 'you'>('home')
   const [memories, setMemories] = useState<Memory[]>([])
   const [refreshing, setRefreshing] = useState(false)
 
@@ -197,7 +213,36 @@ export default function App() {
       }
     })
 
-    return () => subscription.unsubscribe()
+    // Global deep link listener for OAuth redirects
+    const handleDeepLink = async (url: string) => {
+      if (!url || (!url.includes('access_token') && !url.includes('code='))) return
+      try {
+        const hashPart = url.includes('#') ? url.split('#')[1] : ''
+        const hashParams = new URLSearchParams(hashPart)
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+
+        const queryPart = url.includes('?') ? url.split('?')[1].split('#')[0] : ''
+        const queryParams = new URLSearchParams(queryPart)
+        const code = queryParams.get('code') || hashParams.get('code')
+
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        } else if (code) {
+          await supabase.auth.exchangeCodeForSession(code)
+        }
+      } catch (err) {
+        console.warn('Global deep link auth error:', err)
+      }
+    }
+
+    const linkSub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url))
+    Linking.getInitialURL().then((url) => { if (url) handleDeepLink(url) })
+
+    return () => {
+      subscription.unsubscribe()
+      linkSub.remove()
+    }
   }, [memories.length, loadNotificationCount])
 
   // Load Memories
@@ -246,18 +291,49 @@ export default function App() {
 
   const handleSaveText = async (
     draft: string,
-    photos: { base64: string; fileName: string; fileSize: number }[]
+    photos: { base64: string; fileName: string; fileSize: number }[],
+    options?: { customPlace?: string; customDate?: string; customTime?: string }
   ) => {
-    const created = await createMemory(draft, photos)
+    const created = await createMemory(draft, photos, options)
     setMemories((prev) => [created, ...prev])
     setToastMessage('Memory saved')
     setToastVisible(true)
+
+    // Asynchronously trigger AI enrichment in background
+    enrichMemoryMobile(created.id, draft, options?.customPlace)
+      .then((enriched) => {
+        if (enriched) {
+          setMemories((prev) => prev.map((m) => (m.id === enriched.id ? enriched : m)))
+        }
+      })
+      .catch(() => {})
   }
 
-  const handleSaveVoice = async (audioBase64: string, fileName: string, fileSize: number) => {
-    const created = await createVoiceMemory(audioBase64, fileName, fileSize)
+  const handleSaveVoice = async (
+    audioBase64: string,
+    fileName: string,
+    fileSize: number,
+    options?: { customPlace?: string; customDate?: string; customTime?: string }
+  ) => {
+    const created = await createVoiceMemory(audioBase64, fileName, fileSize, 'audio/m4a', options)
     setMemories((prev) => [created, ...prev])
     setToastMessage('Voice memory saved')
+    setToastVisible(true)
+
+    // Asynchronously trigger transcription & AI enrichment in background
+    processVoiceMemoryMobile(created.id, audioBase64, 'audio/m4a', options?.customDate)
+      .then((processed) => {
+        if (processed) {
+          setMemories((prev) => prev.map((m) => (m.id === processed.id ? processed : m)))
+        }
+      })
+      .catch(() => {})
+  }
+
+  const handleUpdateMemory = (updated: Memory) => {
+    setSelectedMemory(updated)
+    setMemories((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+    setToastMessage('Memory updated')
     setToastVisible(true)
   }
 
@@ -363,19 +439,18 @@ export default function App() {
 
   if (hasCompletedOnboarding === false) {
     return (
-      <SafeAreaProvider>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
         <OnboardingScreen colors={colors} onComplete={handleOnboardingComplete} />
-      </SafeAreaProvider>
+      </SafeAreaView>
     )
   }
 
   const userInitial = (customDisplayName || user?.user_metadata?.display_name || user?.email?.charAt(0) || 'N').charAt(0).toUpperCase()
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-        <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
 
         {/* Top Header */}
         <Header
@@ -413,7 +488,19 @@ export default function App() {
                 setCaptureVisible(true)
               }}
               onNavigateTimeline={() => setCurrentTab('timeline')}
+              onNavigateMemories={() => setCurrentTab('memories')}
+              onNavigateAsk={() => setCurrentTab('ask')}
+              onOpenRediscover={() => setRediscoverVisible(true)}
               onAddPhoto={handleInitiateAddPhoto}
+            />
+          )}
+
+          {currentTab === 'memories' && (
+            <MemoriesScreen
+              memories={memories}
+              colors={colors}
+              onBack={() => setCurrentTab('home')}
+              onSelectMemory={handleSelectMemoryDetail}
             />
           )}
 
@@ -467,40 +554,27 @@ export default function App() {
           )}
         </View>
 
-        {/* Bottom Floating Navigation Bar */}
-        <View style={[styles.bottomBar, { backgroundColor: colors.navBg, borderTopColor: colors.border }]}>
-          {/* Home / Avatar Tab */}
+        {/* Balanced 5-Tab Navigation Bar with Safe Area Bottom Margin */}
+        <View
+          style={[
+            styles.bottomBar,
+            {
+              backgroundColor: colors.navBg,
+              borderTopColor: colors.border,
+              paddingBottom: bottomInset,
+              height: 56 + bottomInset,
+            },
+          ]}
+        >
+          {/* Home Tab */}
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => setCurrentTab('home')}
             activeOpacity={0.7}
+            accessibilityLabel="Home"
           >
-            <View
-              style={[
-                styles.navAvatar,
-                {
-                  backgroundColor: currentTab === 'home' ? '#000000' : 'transparent',
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.navAvatarText,
-                  { color: currentTab === 'home' ? '#FFFFFF' : colors.tabInactive },
-                ]}
-              >
-                {userInitial}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.tabLabel,
-                { color: currentTab === 'home' ? colors.tabActive : colors.tabInactive },
-              ]}
-            >
-              Home
-            </Text>
+            <Home size={20} color={currentTab === 'home' ? colors.accent : colors.tabInactive} strokeWidth={1.8} />
+            {currentTab === 'home' && <View style={[styles.activeIndicatorDot, { backgroundColor: colors.accent }]} />}
           </TouchableOpacity>
 
           {/* Timeline Tab */}
@@ -508,28 +582,25 @@ export default function App() {
             style={styles.tabItem}
             onPress={() => setCurrentTab('timeline')}
             activeOpacity={0.7}
+            accessibilityLabel="Timeline"
           >
-            <Clock size={20} color={currentTab === 'timeline' ? colors.tabActive : colors.tabInactive} />
-            <Text
-              style={[
-                styles.tabLabel,
-                { color: currentTab === 'timeline' ? colors.tabActive : colors.tabInactive },
-              ]}
-            >
-              Timeline
-            </Text>
+            <Clock size={20} color={currentTab === 'timeline' ? colors.accent : colors.tabInactive} strokeWidth={1.8} />
+            {currentTab === 'timeline' && <View style={[styles.activeIndicatorDot, { backgroundColor: colors.accent }]} />}
           </TouchableOpacity>
 
-          {/* Center Floating Plus Capture Button */}
+          {/* Center 34x34 Squircle Capture Button */}
           <TouchableOpacity
-            style={[styles.captureBtn, { backgroundColor: colors.accent }]}
+            style={styles.tabItem}
             onPress={() => {
               setCaptureMode('text')
               setCaptureVisible(true)
             }}
             activeOpacity={0.85}
+            accessibilityLabel="Capture"
           >
-            <Plus size={24} color="#211d1a" strokeWidth={2.5} />
+            <View style={[styles.captureSquircle, { backgroundColor: 'rgba(229, 115, 115, 0.12)', borderColor: 'rgba(229, 115, 115, 0.32)' }]}>
+              <Plus size={18} color={colors.accent} strokeWidth={2.2} />
+            </View>
           </TouchableOpacity>
 
           {/* Ask Tab */}
@@ -537,16 +608,10 @@ export default function App() {
             style={styles.tabItem}
             onPress={() => setCurrentTab('ask')}
             activeOpacity={0.7}
+            accessibilityLabel="Ask"
           >
-            <CustomBrainIcon size={20} color={currentTab === 'ask' ? colors.tabActive : colors.tabInactive} />
-            <Text
-              style={[
-                styles.tabLabel,
-                { color: currentTab === 'ask' ? colors.tabActive : colors.tabInactive },
-              ]}
-            >
-              Ask
-            </Text>
+            <CustomBrainIcon size={20} color={currentTab === 'ask' ? colors.accent : colors.tabInactive} />
+            {currentTab === 'ask' && <View style={[styles.activeIndicatorDot, { backgroundColor: colors.accent }]} />}
           </TouchableOpacity>
 
           {/* You Tab */}
@@ -554,16 +619,10 @@ export default function App() {
             style={styles.tabItem}
             onPress={() => setCurrentTab('you')}
             activeOpacity={0.7}
+            accessibilityLabel="You"
           >
-            <User size={20} color={currentTab === 'you' ? colors.tabActive : colors.tabInactive} />
-            <Text
-              style={[
-                styles.tabLabel,
-                { color: currentTab === 'you' ? colors.tabActive : colors.tabInactive },
-              ]}
-            >
-              You
-            </Text>
+            <User size={20} color={currentTab === 'you' ? colors.accent : colors.tabInactive} strokeWidth={1.8} />
+            {currentTab === 'you' && <View style={[styles.activeIndicatorDot, { backgroundColor: colors.accent }]} />}
           </TouchableOpacity>
         </View>
 
@@ -589,6 +648,7 @@ export default function App() {
           onInvitePeople={handleInvitePeople}
           onAddPerspective={handleAddPerspective}
           onDeletePerspective={handleDeletePerspective}
+          onUpdateMemory={handleUpdateMemory}
         />
 
         {/* Invite People Modal */}
@@ -615,7 +675,16 @@ export default function App() {
             visible={Boolean(perspectiveMemory)}
             colors={colors}
             onClose={() => setPerspectiveMemory(null)}
-            onSaved={handlePerspectiveSaved}
+            onSaved={async () => {
+              if (selectedMemory) {
+                const updated = await fetchMemoryDetails(selectedMemory.id)
+                if (updated) setSelectedMemory(updated)
+              }
+              const fresh = await fetchMemories()
+              setMemories(fresh)
+              setToastMessage('Perspective added')
+              setToastVisible(true)
+            }}
           />
         )}
 
@@ -644,9 +713,10 @@ export default function App() {
         <RediscoverModal
           isOpen={rediscoverVisible}
           onClose={() => setRediscoverVisible(false)}
-          onMemoryCreated={(newMemory) => {
-            setMemories((prev) => [newMemory, ...prev])
-            setToastMessage('Rediscovered memory created!')
+          onMemoryCreated={async (newMemory) => {
+            const fresh = await fetchMemories()
+            setMemories(fresh)
+            setToastMessage('Memory created from past photos')
             setToastVisible(true)
           }}
         />
@@ -659,7 +729,6 @@ export default function App() {
           onDismiss={() => setToastVisible(false)}
         />
       </SafeAreaView>
-    </SafeAreaProvider>
   )
 }
 
@@ -679,7 +748,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    height: 68,
+    height: 56,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 8,
     position: 'absolute',
@@ -691,36 +760,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
-    paddingVertical: 4,
+    height: 56,
+    position: 'relative',
   },
-  navAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  activeIndicatorDot: {
+    position: 'absolute',
+    bottom: 6,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  captureSquircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  navAvatarText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  tabLabel: {
-    fontSize: 9,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  captureBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-    shadowColor: '#d88a6a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
   },
 })
