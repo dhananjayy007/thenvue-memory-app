@@ -28,6 +28,7 @@ import {
   Edit3,
   FileText,
   Check,
+  Camera,
 } from 'lucide-react-native'
 import type { Memory, ConnectedMemory, MemoryPerspective } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
@@ -48,6 +49,8 @@ export function MemoryDetailModal({
   onAddPerspective,
   onDeletePerspective,
   onUpdateMemory,
+  onAddPhoto,
+  onSearchTag,
 }: {
   memory: Memory | null
   allMemories: Memory[]
@@ -60,6 +63,8 @@ export function MemoryDetailModal({
   onAddPerspective?: (m: Memory) => void
   onDeletePerspective?: (perspectiveId: string) => Promise<void>
   onUpdateMemory?: (updated: Memory) => void
+  onAddPhoto?: (memory: Memory) => void
+  onSearchTag?: (tag: string) => void
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -282,50 +287,66 @@ export function MemoryDetailModal({
             </View>
           ) : (
             <>
-              {/* Photos */}
-              {photos.length === 1 ? (
-                <View style={styles.singleImageWrapper}>
-                  <Image
-                    source={{ uri: photos[0].url, cacheKey: photos[0].url }}
-                    style={styles.singleImage}
-                    contentFit="cover"
-                    transition={0}
-                    cachePolicy="memory-disk"
-                  />
-                  {isOwner && (
-                    <TouchableOpacity
-                      style={styles.mediaDeleteBtn}
-                      onPress={() => confirmDeleteMedia(photos[0].id)}
-                      activeOpacity={0.8}
-                    >
-                      <Trash2 size={12} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ) : photos.length > 1 ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery}>
-                  {photos.map((p) => (
-                    <View key={p.id} style={styles.galleryImageWrapper}>
-                      <Image
-                        source={{ uri: p.url, cacheKey: p.url }}
-                        style={styles.galleryImage}
-                        contentFit="cover"
-                        transition={0}
-                        cachePolicy="memory-disk"
-                      />
-                      {isOwner && (
-                        <TouchableOpacity
-                          style={styles.mediaDeleteBtn}
-                          onPress={() => confirmDeleteMedia(p.id)}
-                          activeOpacity={0.8}
-                        >
-                          <Trash2 size={11} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                </ScrollView>
-              ) : null}
+              {/* Photos Gallery & Add Photo */}
+              <View style={styles.mediaContainerSection}>
+                {photos.length === 1 ? (
+                  <View style={styles.singleImageWrapper}>
+                    <Image
+                      source={{ uri: photos[0].url }}
+                      style={styles.singleImage}
+                      contentFit="cover"
+                      transition={150}
+                      cachePolicy="memory-disk"
+                    />
+                    {isOwner && (
+                      <TouchableOpacity
+                        style={styles.mediaDeleteBtn}
+                        onPress={() => confirmDeleteMedia(photos[0].id)}
+                        activeOpacity={0.8}
+                      >
+                        <Trash2 size={12} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : photos.length > 1 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery}>
+                    {photos.map((p) => (
+                      <View key={p.id} style={styles.galleryImageWrapper}>
+                        <Image
+                          source={{ uri: p.url }}
+                          style={styles.galleryImage}
+                          contentFit="cover"
+                          transition={150}
+                          cachePolicy="memory-disk"
+                        />
+                        {isOwner && (
+                          <TouchableOpacity
+                            style={styles.mediaDeleteBtn}
+                            onPress={() => confirmDeleteMedia(p.id)}
+                            activeOpacity={0.8}
+                          >
+                            <Trash2 size={11} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : null}
+
+                {/* Direct Add Photo Button for Memory */}
+                {isOwner && onAddPhoto && (
+                  <TouchableOpacity
+                    style={[styles.addPhotoDetailBtn, { borderColor: colors.border, backgroundColor: colors.cardSecondary }]}
+                    onPress={() => onAddPhoto(memory)}
+                    activeOpacity={0.7}
+                  >
+                    <Camera size={15} color={colors.accent} />
+                    <Text style={[styles.addPhotoDetailBtnText, { color: colors.text }]}>
+                      {photos.length === 0 ? 'Attach a photo to this memory' : 'Add another photo'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {/* Documents / PDFs Section */}
               {documents.length > 0 && (
@@ -398,27 +419,50 @@ export function MemoryDetailModal({
               </Text>
               <Text style={[styles.bodyText, { color: colors.text }]}>{memory.text}</Text>
 
-              {/* Tags */}
+              {/* Highlighted & Interactive Tags / People / Place */}
               <View style={styles.tagsContainer}>
                 {memory.place ? (
-                  <View style={[styles.tagPill, { backgroundColor: colors.pill, borderColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.tagPill, { backgroundColor: colors.pill, borderColor: colors.accent }]}
+                    onPress={() => {
+                      onClose()
+                      onSearchTag?.(memory.place)
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <MapPin size={13} color={colors.accent} />
-                    <Text style={[styles.tagText, { color: colors.text }]}>{memory.place}</Text>
-                  </View>
+                    <Text style={[styles.tagText, { color: colors.accent, fontWeight: '600' }]}>{memory.place}</Text>
+                  </TouchableOpacity>
                 ) : null}
 
                 {memory.people.map((person) => (
-                  <View key={person} style={[styles.tagPill, { backgroundColor: colors.pill, borderColor: colors.border }]}>
-                    <Users size={13} color={colors.textSecondary} />
-                    <Text style={[styles.tagText, { color: colors.text }]}>{person}</Text>
-                  </View>
+                  <TouchableOpacity
+                    key={person}
+                    style={[styles.tagPill, { backgroundColor: colors.pill, borderColor: colors.accent }]}
+                    onPress={() => {
+                      onClose()
+                      onSearchTag?.(person)
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Users size={13} color={colors.accent} />
+                    <Text style={[styles.tagText, { color: colors.text, fontWeight: '600' }]}>{person}</Text>
+                  </TouchableOpacity>
                 ))}
 
                 {memory.topics.map((topic) => (
-                  <View key={topic} style={[styles.tagPill, { backgroundColor: colors.pill, borderColor: colors.border }]}>
-                    <Sparkles size={13} color={colors.textSecondary} />
-                    <Text style={[styles.tagText, { color: colors.text }]}>{topic}</Text>
-                  </View>
+                  <TouchableOpacity
+                    key={topic}
+                    style={[styles.tagPill, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+                    onPress={() => {
+                      onClose()
+                      onSearchTag?.(topic)
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Sparkles size={13} color={colors.accent} />
+                    <Text style={[styles.tagText, { color: colors.textMuted }]}>#{topic}</Text>
+                  </TouchableOpacity>
                 ))}
               </View>
             </>
@@ -606,14 +650,30 @@ export function MemoryDetailModal({
               </View>
 
               {isOwner ? (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={startEditing}
-                  activeOpacity={0.7}
-                >
-                  <Edit3 size={18} color={colors.accent} />
-                  <Text style={[styles.menuItemText, { color: colors.text }]}>Edit Memory</Text>
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={startEditing}
+                    activeOpacity={0.7}
+                  >
+                    <Edit3 size={18} color={colors.accent} />
+                    <Text style={[styles.menuItemText, { color: colors.text }]}>Edit Memory</Text>
+                  </TouchableOpacity>
+
+                  {onAddPhoto && (
+                    <TouchableOpacity
+                      style={styles.menuItem}
+                      onPress={() => {
+                        setShowMenu(false)
+                        onAddPhoto(memory)
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Camera size={18} color={colors.accent} />
+                      <Text style={[styles.menuItemText, { color: colors.text }]}>Add Photo</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               ) : null}
 
               {onInvitePeople ? (
@@ -753,6 +813,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mediaContainerSection: {
+    marginBottom: 16,
+  },
+  addPhotoDetailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  addPhotoDetailBtnText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   documentsContainer: {
     gap: 8,

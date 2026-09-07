@@ -16,6 +16,7 @@ import { Home, Clock, Plus, User } from 'lucide-react-native'
 import { CustomBrainIcon } from './src/components/CustomBrainIcon'
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js'
 
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from './src/lib/supabase'
 import { darkColors, lightColors } from './src/theme/colors'
 import type { Memory, MemoryPerspective } from './src/types/memory'
@@ -74,6 +75,27 @@ function MainContent() {
   const [dark, setDark] = useState(true)
   const colors = dark ? darkColors : lightColors
 
+  // Restore saved theme on startup (default to dark if not set)
+  useEffect(() => {
+    AsyncStorage.getItem('memory_theme')
+      .then((savedTheme) => {
+        if (savedTheme === 'light') {
+          setDark(false)
+        } else if (savedTheme === 'dark') {
+          setDark(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleToggleTheme = () => {
+    setDark((prev) => {
+      const next = !prev
+      AsyncStorage.setItem('memory_theme', next ? 'dark' : 'light').catch(() => {})
+      return next
+    })
+  }
+
   const [currentTab, setCurrentTab] = useState<'home' | 'timeline' | 'memories' | 'ask' | 'people' | 'places' | 'you'>('home')
   const [memories, setMemories] = useState<Memory[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -88,6 +110,7 @@ function MainContent() {
 
   const [customDisplayName, setCustomDisplayName] = useState<string>('')
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null)
+  const [memorySearchQuery, setMemorySearchQuery] = useState<string>('')
 
   // Shared Memories & Notifications Modals State
   const [inviteMemory, setInviteMemory] = useState<Memory | null>(null)
@@ -529,7 +552,11 @@ function MainContent() {
             <MemoriesScreen
               memories={memories}
               colors={colors}
-              onBack={() => setCurrentTab('home')}
+              initialQuery={memorySearchQuery}
+              onBack={() => {
+                setMemorySearchQuery('')
+                setCurrentTab('home')
+              }}
               onSelectMemory={handleSelectMemoryDetail}
               onEndReached={handleLoadMore}
               isLoadingMore={isLoadingMore}
@@ -558,7 +585,10 @@ function MainContent() {
             <PeopleScreen
               memories={memories}
               colors={colors}
-              onSelectPerson={() => setCurrentTab('timeline')}
+              onSelectPerson={(personName) => {
+                setMemorySearchQuery(personName)
+                setCurrentTab('memories')
+              }}
             />
           )}
 
@@ -566,7 +596,10 @@ function MainContent() {
             <PlacesScreen
               memories={memories}
               colors={colors}
-              onSelectPlace={() => setCurrentTab('timeline')}
+              onSelectPlace={(placeName) => {
+                setMemorySearchQuery(placeName)
+                setCurrentTab('memories')
+              }}
             />
           )}
 
@@ -577,7 +610,7 @@ function MainContent() {
               dark={dark}
               userEmail={user?.email || 'User'}
               currentDisplayName={customDisplayName || user?.user_metadata?.display_name || user?.email?.split('@')[0]}
-              onToggleTheme={() => setDark(!dark)}
+              onToggleTheme={handleToggleTheme}
               onSignOut={handleSignOut}
               onNavigatePeople={() => setCurrentTab('people')}
               onNavigatePlaces={() => setCurrentTab('places')}
@@ -683,7 +716,14 @@ function MainContent() {
           onAddPerspective={handleAddPerspective}
           onDeletePerspective={handleDeletePerspective}
           onUpdateMemory={handleUpdateMemory}
+          onAddPhoto={handleInitiateAddPhoto}
+          onSearchTag={(tag) => {
+            setSelectedMemory(null)
+            setMemorySearchQuery(tag)
+            setCurrentTab('memories')
+          }}
         />
+
 
         {/* Invite People Modal */}
         {inviteMemory && (

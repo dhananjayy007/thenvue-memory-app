@@ -13,7 +13,7 @@ import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
 import { formatDate, isSameCalendarDay } from '../lib/format'
 
-export function MemoryCard({
+export const MemoryCard = memo(function MemoryCard({
   memory,
   colors,
   onPress,
@@ -31,7 +31,7 @@ export function MemoryCard({
   const photo = memory.media.find((m) => m.mediaType === 'image')
   const isAudio = memory.media.some((m) => m.mediaType === 'audio')
   const isOwner = !memory.userId || !currentUserId || memory.userId === currentUserId
-  const canAddPhoto = Boolean(onAddPhoto) && isOwner && isSameCalendarDay(memory.date)
+  const canAddPhoto = Boolean(onAddPhoto) && isOwner
 
   return (
     <TouchableOpacity
@@ -49,12 +49,11 @@ export function MemoryCard({
       <View style={styles.visualContainer}>
         {photo ? (
           <Image
-            source={{ uri: photo.url, cacheKey: photo.url }}
+            source={{ uri: photo.url }}
             style={styles.image}
             contentFit="cover"
-            transition={0}
-            recyclingKey={photo.url}
-            priority="high"
+            transition={150}
+            priority="normal"
             cachePolicy="memory-disk"
           />
         ) : isAudio ? (
@@ -138,7 +137,7 @@ export function MemoryCard({
       </View>
     </TouchableOpacity>
   )
-}
+})
 
 const styles = StyleSheet.create({
   card: {

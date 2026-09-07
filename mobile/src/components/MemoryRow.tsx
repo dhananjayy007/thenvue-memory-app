@@ -6,7 +6,7 @@ import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
 import { formatTime, formatDateShort } from '../lib/format'
 
-export function MemoryRow({
+export const MemoryRow = memo(function MemoryRow({
   memory,
   colors,
   onPress,
@@ -58,12 +58,11 @@ export function MemoryRow({
 
       {photo ? (
         <Image
-          source={{ uri: photo.url, cacheKey: photo.url }}
+          source={{ uri: photo.url }}
           style={styles.thumbnail}
           contentFit="cover"
-          transition={0}
-          recyclingKey={photo.url}
-          priority="high"
+          transition={150}
+          priority="normal"
           cachePolicy="memory-disk"
         />
       ) : null}
@@ -71,7 +70,7 @@ export function MemoryRow({
       <ChevronRight size={14} color={colors.textMuted} />
     </TouchableOpacity>
   )
-}
+})
 
 const styles = StyleSheet.create({
   row: {

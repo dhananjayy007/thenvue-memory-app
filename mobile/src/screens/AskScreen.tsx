@@ -29,7 +29,7 @@ export function AskScreen({
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{
     answer: string
-    sourceMemories?: any[]
+    sources: Memory[]
   } | null>(null)
 
   const suggestedQuestions = [
@@ -49,20 +49,20 @@ export function AskScreen({
       const res = await askMyLife(q, memories || [])
       setResult({
         answer: res.answer,
-        sourceMemories: res.sourceMemories || [],
+        sources: res.sources || [],
       })
     } catch (err) {
       console.error('Ask error:', err)
       setResult({
         answer: "I couldn't retrieve memories for that question. Please try asking again.",
-        sourceMemories: [],
+        sources: [],
       })
     } finally {
       setLoading(false)
     }
   }
 
-  const sources = result?.sourceMemories || []
+  const sources = result?.sources || []
 
   return (
     <ScrollView

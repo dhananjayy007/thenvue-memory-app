@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   Dimensions,
@@ -14,6 +15,7 @@ import { Search, ArrowLeft } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
 import { MemoryCard } from '../components/MemoryCard'
+import { searchSemanticMemoriesApi } from '../lib/ai'
 
 const { width } = Dimensions.get('window')
 const cardWidth = (width - 40) / 2
@@ -25,6 +27,7 @@ export function MemoriesScreen({
   onSelectMemory,
   onEndReached,
   isLoadingMore = false,
+  initialQuery = '',
 }: {
   memories: Memory[]
   colors: ThemeColors
@@ -34,27 +37,84 @@ export function MemoriesScreen({
   onSelectMemory: (m: Memory) => void
   onEndReached?: () => void
   isLoadingMore?: boolean
+  initialQuery?: string
 }) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
+  const [semanticResults, setSemanticResults] = useState<Memory[] | null>(null)
+  const [isSearchingSemantic, setIsSearchingSemantic] = useState(false)
 
-  const filteredMemories = useMemo(() => {
-    let list = memories
-    if (query.trim()) {
-      const q = query.toLowerCase()
-      list = memories.filter(
-        (m) =>
-          `${m.title} ${m.text} ${m.place} ${m.people.join(' ')} ${m.topics.join(' ')}`
-            .toLowerCase()
-            .includes(q)
-      )
+  // Sync with initialQuery prop if passed
+  useEffect(() => {
+    if (initialQuery !== undefined) {
+      setQuery(initialQuery)
+    }
+  }, [initialQuery])
+
+  // Debounced semantic search using the existing backend search endpoint
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setSemanticResults(null)
+      setIsSearchingSemantic(false)
+      return
     }
 
-    return list.sort((a, b) => {
+    let active = true
+    setIsSearchingSemantic(true)
+
+    const timeout = setTimeout(async () => {
+      try {
+        const results = await searchSemanticMemoriesApi(trimmed, 20)
+        if (active) {
+          setSemanticResults(results.length > 0 ? results : null)
+        }
+      } catch {
+        if (active) setSemanticResults(null)
+      } finally {
+        if (active) setIsSearchingSemantic(false)
+      }
+    }, 300)
+
+    return () => {
+      active = false
+      clearTimeout(timeout)
+    }
+  }, [query])
+
+  // Extract top unique tags/topics/people for instant filtering
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const m of memories) {
+      for (const p of m.people) if (p) set.add(p)
+      for (const t of m.topics) if (t) set.add(`#${t}`)
+      if (m.place) set.add(m.place)
+    }
+    return Array.from(set).slice(0, 15)
+  }, [memories])
+
+  const filteredMemories = useMemo(() => {
+    if (!query.trim()) return memories
+
+    const q = query.toLowerCase().replace(/^#/, '')
+    const keywordMatches = memories.filter(
+      (m) =>
+        `${m.title} ${m.text} ${m.place} ${m.people.join(' ')} ${m.topics.join(' ')}`
+          .toLowerCase()
+          .includes(q)
+    )
+
+    if (semanticResults && semanticResults.length > 0) {
+      const semanticIds = new Set(semanticResults.map((m) => m.id))
+      const extraKeywords = keywordMatches.filter((m) => !semanticIds.has(m.id))
+      return [...semanticResults, ...extraKeywords]
+    }
+
+    return keywordMatches.sort((a, b) => {
       const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
       if (dateDiff !== 0) return dateDiff
       return (b.time || '').localeCompare(a.time || '')
     })
-  }, [memories, query])
+  }, [memories, query, semanticResults])
 
   const renderHeader = useCallback(() => (
     <View style={styles.searchSection}>
@@ -66,10 +126,71 @@ export function MemoriesScreen({
           placeholderTextColor={colors.textMuted}
           value={query}
           onChangeText={setQuery}
+          autoCapitalize="none"
         />
+        {isSearchingSemantic ? (
+          <ActivityIndicator size="small" color={colors.accent} />
+        ) : query.length > 0 ? (
+          <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '600' }}>Clear</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
+
+      {/* Horizontal Tag Pills with Highlight */}
+      {allTags.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tagsScrollRow}>
+          <TouchableOpacity
+            style={[
+              styles.filterTagPill,
+              {
+                backgroundColor: !query ? colors.accent : colors.card,
+                borderColor: !query ? colors.accent : colors.border,
+              },
+            ]}
+            onPress={() => setQuery('')}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.filterTagText,
+                { color: !query ? '#211d1a' : colors.textMuted, fontWeight: !query ? '700' : '400' },
+              ]}
+            >
+              All
+            </Text>
+          </TouchableOpacity>
+
+          {allTags.map((tag) => {
+            const isSelected = query.toLowerCase().replace(/^#/, '') === tag.toLowerCase().replace(/^#/, '')
+            return (
+              <TouchableOpacity
+                key={tag}
+                style={[
+                  styles.filterTagPill,
+                  {
+                    backgroundColor: isSelected ? colors.accent : colors.card,
+                    borderColor: isSelected ? colors.accent : colors.border,
+                  },
+                ]}
+                onPress={() => setQuery(isSelected ? '' : tag.replace(/^#/, ''))}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.filterTagText,
+                    { color: isSelected ? '#211d1a' : colors.text, fontWeight: isSelected ? '700' : '500' },
+                  ]}
+                >
+                  {tag}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
+      )}
     </View>
-  ), [colors, query])
+  ), [colors, query, allTags])
 
   const renderItem = useCallback(({ item }: { item: Memory }) => (
     <View style={{ width: cardWidth, margin: 4 }}>
@@ -179,6 +300,22 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
+  tagsScrollRow: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+    flexDirection: 'row',
+  },
+  filterTagPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  filterTagText: {
+    fontSize: 12,
+  },
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -206,3 +343,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 })
+

@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { LandingNavbar } from '@/components/landing/navbar'
 import { LandingHero } from '@/components/landing/hero'
 import { LandingEmotionalProblem } from '@/components/landing/emotional-problem'
@@ -12,6 +14,21 @@ import { LandingFinalCtaSection } from '@/components/landing/final-cta-section'
 import { LandingFooter } from '@/components/landing/footer'
 
 export function ThenvueLandingPage({ user }: { user?: boolean }) {
+  const router = useRouter()
+
+  useEffect(() => {
+    // If inside Capacitor / native app wrapper, bypass landing page and route to /app
+    const isCapacitor =
+      typeof window !== 'undefined' &&
+      Boolean(
+        (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+      )
+
+    if (isCapacitor) {
+      router.replace('/app')
+    }
+  }, [router])
+
   return (
     <div className="landing-root-container">
       {/* 1. Minimal Navigation */}

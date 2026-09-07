@@ -81,18 +81,65 @@ export async function embedText(text: string): Promise<number[] | null> {
   }
 }
 
-export async function askMyLife(question: string, memories: Memory[]): Promise<AskAnswer> {
+export type AskMyLifeResult = {
+  query: string
+  answer: string
+  sources: Memory[]
+}
+
+export async function askMyLife(question: string, memories: Memory[] = []): Promise<AskMyLifeResult> {
   try {
     const data = await callAiProxy('ask', { question })
-    return data
+    return {
+      query: data.query || question,
+      answer: data.answer || "I couldn't find an answer.",
+      sources: Array.isArray(data.sources) ? data.sources : [],
+    }
   } catch (err) {
     console.warn('askMyLife proxy error, running client fallback:', err)
     return {
-      question,
+      query: question,
       answer: "I couldn't process your question right now. Please try again.",
-      grounded: false,
-      sourceMemories: [],
+      sources: [],
     }
+  }
+}
+
+export async function searchSemanticMemoriesApi(
+  query: string,
+  limit = 20,
+  threshold = 0.2
+): Promise<Memory[]> {
+  const trimmed = query.trim()
+  if (!trimmed) return []
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return []
+
+    const res = await fetch(
+      `${API_BASE_URL}/api/v1/memories/search?q=${encodeURIComponent(trimmed)}&limit=${limit}&threshold=${threshold}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+
+    if (!res.ok) {
+      console.warn(`Semantic search error status: ${res.status}`)
+      return []
+    }
+
+    const data = await res.json()
+    const results = Array.isArray(data.results) ? data.results : []
+    return results
+  } catch (err) {
+    console.warn('Semantic search fetch error:', err)
+    return []
   }
 }
 

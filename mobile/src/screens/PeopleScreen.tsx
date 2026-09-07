@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Platform,
 } from 'react-native'
-import { Users, ChevronRight } from 'lucide-react-native'
+import { Users, ChevronRight, Search } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
 
@@ -20,6 +21,8 @@ export function PeopleScreen({
   colors: ThemeColors
   onSelectPerson: (person: string) => void
 }) {
+  const [searchQuery, setSearchQuery] = useState('')
+
   const peopleSummary = useMemo(() => {
     const map = new Map<string, Memory[]>()
     for (const m of memories) {
@@ -28,14 +31,18 @@ export function PeopleScreen({
         map.get(p)!.push(m)
       }
     }
-    return [...map.entries()]
+    const all = [...map.entries()]
       .map(([name, list]) => ({
         name,
         count: list.length,
         latestMemory: list[0],
       }))
       .sort((a, b) => b.count - a.count)
-  }, [memories])
+
+    if (!searchQuery.trim()) return all
+    const q = searchQuery.toLowerCase().trim()
+    return all.filter((item) => item.name.toLowerCase().includes(q))
+  }, [memories, searchQuery])
 
   return (
     <ScrollView
@@ -51,11 +58,26 @@ export function PeopleScreen({
         </Text>
       </View>
 
+      {/* Search Input for People */}
+      <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Search size={16} color={colors.textMuted} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Search people..."
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+        />
+      </View>
+
       <View style={[styles.list, { borderTopColor: colors.border }]}>
         {peopleSummary.length === 0 ? (
           <View style={styles.empty}>
             <Users size={24} color={colors.textMuted} />
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>No people tagged yet</Text>
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+              {searchQuery ? `No person found matching "${searchQuery}"` : 'No people tagged yet'}
+            </Text>
           </View>
         ) : (
           peopleSummary.map((item) => (
@@ -113,6 +135,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 8,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 18,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 0,
   },
   list: {
     borderTopWidth: StyleSheet.hairlineWidth,

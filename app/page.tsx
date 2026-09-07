@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ThenvueLandingPage } from '@/components/landing/landing-page'
 
@@ -6,6 +7,10 @@ export default async function Page() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  if (user) {
+    redirect('/app')
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',

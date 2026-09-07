@@ -30,6 +30,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isLoginRoute = pathname.startsWith('/login')
   const isAppRoute = pathname.startsWith('/app')
+  const isRootRoute = pathname === '/'
 
   // Protected app route: requires authentication
   if (!user && isAppRoute) {
@@ -38,8 +39,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If already authenticated and visiting /login, redirect to /app
-  if (user && isLoginRoute) {
+  // If already authenticated and visiting /login or root (/), redirect to /app
+  if (user && (isLoginRoute || isRootRoute)) {
     const url = request.nextUrl.clone()
     url.pathname = '/app'
     return NextResponse.redirect(url)
