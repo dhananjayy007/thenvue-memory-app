@@ -1901,8 +1901,10 @@ export type MobilePastPhotoInput = {
 
 export async function uploadAndProcessPastPhotosMobile({
   photos,
+  onProgress,
 }: {
   photos: MobilePastPhotoInput[]
+  onProgress?: (status: string) => void
 }): Promise<{
   candidates: MemoryClusterCandidate[]
   duplicateCount: number
@@ -1929,6 +1931,9 @@ export async function uploadAndProcessPastPhotosMobile({
   const UPLOAD_CONCURRENCY = 5
   for (let i = 0; i < photos.length; i += UPLOAD_CONCURRENCY) {
     const chunk = photos.slice(i, i + UPLOAD_CONCURRENCY)
+    const currentProgress = Math.min(i + UPLOAD_CONCURRENCY, photos.length)
+    onProgress?.(`Uploading past photo ${currentProgress} of ${photos.length}...`)
+
     await Promise.all(
       chunk.map(async (photo) => {
         try {
@@ -1945,17 +1950,7 @@ export async function uploadAndProcessPastPhotosMobile({
             bytes = new Uint8Array(ab)
           }
 
-          if (bytes && !photo.storagePath) {
-            const { error: uploadErr } = await supabase.storage
-              .from('memory-photos')
-              .upload(storagePath, bytes, { contentType, upsert: false })
-
-            if (uploadErr) {
-              failedCount++
-              return
-            }
-          }
-
+          // 1. Extract capture metadata BEFORE any resizing (Preserves strict date integrity priority)
           const extracted = bytes
             ? extractPhotoMetadataMobile({
                 bytes,
@@ -1973,6 +1968,42 @@ export async function uploadAndProcessPastPhotosMobile({
                 longitude: photo.longitude ?? null,
               }
 
+          // 2. Client-side image resizing for upload binary (Max 2048px, JPEG quality 0.82)
+          let uploadBytes = bytes
+          let uploadContentType = contentType
+
+          if (photo.uri) {
+            try {
+              const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator')
+              const resized = await manipulateAsync(
+                photo.uri,
+                [{ resize: { width: 2048 } }],
+                { compress: 0.82, format: SaveFormat.JPEG }
+              )
+              if (resized?.uri) {
+                const rResp = await fetch(resized.uri)
+                const rAb = await rResp.arrayBuffer()
+                uploadBytes = new Uint8Array(rAb)
+                uploadContentType = 'image/jpeg'
+              }
+            } catch (manipErr) {
+              console.warn('Image resize fallback to original asset:', manipErr)
+              uploadBytes = bytes // Safe fallback to original binary
+            }
+          }
+
+          // 3. Upload optimized binary directly to Supabase Storage
+          if (uploadBytes && !photo.storagePath) {
+            const { error: uploadErr } = await supabase.storage
+              .from('memory-photos')
+              .upload(storagePath, uploadBytes, { contentType: uploadContentType, upsert: false })
+
+            if (uploadErr) {
+              failedCount++
+              return
+            }
+          }
+
           const assetId = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
           storagePathsForSigning.push(storagePath)
 
@@ -1989,8 +2020,8 @@ export async function uploadAndProcessPastPhotosMobile({
             importedAt: extracted.importedAt,
             latitude: extracted.latitude ?? photo.latitude ?? null,
             longitude: extracted.longitude ?? photo.longitude ?? null,
-            mimeType: contentType,
-            fileSize: photo.fileSize,
+            mimeType: uploadContentType,
+            fileSize: uploadBytes?.length || photo.fileSize,
             processingStatus: 'processed',
             createdAt: new Date().toISOString(),
           })
@@ -2067,6 +2098,9 @@ export async function uploadAndProcessPastPhotosMobile({
 
   for (let i = 0; i < rawClusters.length; i += CLUSTER_CONCURRENCY) {
     const clusterChunk = rawClusters.slice(i, i + CLUSTER_CONCURRENCY)
+    const currentClustProgress = Math.min(i + CLUSTER_CONCURRENCY, rawClusters.length)
+    onProgress?.(`Understanding moment ${currentClustProgress} of ${rawClusters.length}...`)
+
     const chunkCandidates = await Promise.all(
       clusterChunk.map(async (clusterAssets) => {
         const clusterId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
@@ -2188,40 +2222,40 @@ export async function saveRediscoveredMemoryMobile({
 
   if (memError || !memoryData) throw new Error(memError?.message || 'Could not save memory.')
 
-  // Parallel media insert
+  // Batch media insert
   const mediaAssets: MediaAsset[] = []
   if (storagePaths.length > 0) {
     const signedUrlMap = await getBatchSignedMediaUrls(storagePaths)
-    const insertedMedia = await Promise.all(
-      storagePaths.map(async (path) => {
-        const fileName = path.split('/').pop() || 'photo.jpg'
-        const { data: mRow } = await supabase
-          .from('media')
-          .insert({
-            memory_id: memoryData.id,
-            user_id: user.id,
-            storage_path: path,
-            media_type: 'image',
-            file_name: fileName,
-            file_size: 150000,
-            source_type: 'past_import',
-          })
-          .select()
-          .single()
+    const toInsert = storagePaths.map((path) => {
+      const fileName = path.split('/').pop() || 'photo.jpg'
+      return {
+        memory_id: memoryData.id,
+        user_id: user.id,
+        storage_path: path,
+        media_type: 'image',
+        file_name: fileName,
+        file_size: 150000,
+        source_type: 'past_import',
+      }
+    })
 
-        return {
-          id: mRow?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          url: signedUrlMap.get(path) || '',
-          storagePath: path,
-          mediaType: 'image' as const,
-          fileName,
-          fileSize: 150000,
-          createdAt: mRow?.created_at || new Date().toISOString(),
-          sourceType: 'past_import' as const,
-        }
+    const { data: insertedRows } = await supabase.from('media').insert(toInsert).select()
+    const rowsMap = new Map((insertedRows || []).map((r: any) => [r.storage_path, r]))
+
+    for (const path of storagePaths) {
+      const mRow = rowsMap.get(path)
+      const fileName = path.split('/').pop() || 'photo.jpg'
+      mediaAssets.push({
+        id: mRow?.id || `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        url: signedUrlMap.get(path) || '',
+        storagePath: path,
+        mediaType: 'image' as const,
+        fileName,
+        fileSize: 150000,
+        createdAt: mRow?.created_at || new Date().toISOString(),
+        sourceType: 'past_import' as const,
       })
-    )
-    mediaAssets.push(...insertedMedia)
+    }
   }
 
   return {
@@ -2374,6 +2408,98 @@ export async function deleteMedia(mediaId: string): Promise<void> {
   // Delete row
   await supabase.from('media').delete().eq('id', mediaId)
 }
+
+export async function fetchSharedMemoryById(memoryId: string): Promise<Memory | null> {
+  const trimmedId = memoryId.trim()
+  if (!trimmedId) return null
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    const currentUserId = user?.id
+
+    // 1. First try querying directly from Supabase (if user owns it or has RLS access)
+    const { data: row, error } = await supabase
+      .from('memories')
+      .select(`
+        id,
+        user_id,
+        title,
+        body,
+        occurred_on,
+        occurred_time,
+        place,
+        people,
+        topics,
+        mood,
+        summary,
+        memory_type,
+        media (
+          id,
+          storage_path,
+          media_type,
+          file_name,
+          file_size,
+          created_at
+        )
+      `)
+      .eq('id', trimmedId)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (!error && row) {
+      const mediaAssets: MediaAsset[] = []
+      for (const m of (row.media || []) as any[]) {
+        const bucket = m.media_type === 'audio' ? 'memory-audio' : 'memory-photos'
+        const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(m.storage_path, 3600)
+        mediaAssets.push({
+          id: m.id,
+          url: signed?.signedUrl || '',
+          storagePath: m.storage_path,
+          mediaType: m.media_type,
+          fileName: m.file_name,
+          fileSize: m.file_size,
+          createdAt: m.created_at,
+        })
+      }
+
+      // Fetch perspectives
+      const { perspectives } = await fetchPerspectivesPage({ memoryId: row.id }).catch(() => ({ perspectives: [] }))
+
+      return {
+        id: row.id,
+        userId: row.user_id,
+        title: row.title,
+        text: row.body,
+        date: row.occurred_on,
+        time: row.occurred_time?.slice(0, 5) || '12:00',
+        place: row.place || '',
+        people: row.people || [],
+        topics: row.topics || [],
+        mood: row.mood || 'calm',
+        summary: row.summary || '',
+        memoryType: row.memory_type || 'moment',
+        media: mediaAssets,
+        isOwner: currentUserId ? row.user_id === currentUserId : false,
+        perspectives: perspectives || [],
+      }
+    }
+
+    // 2. Fallback to public shared memory API
+    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://thenvue.com'
+    const res = await fetch(`${API_BASE_URL}/api/v1/memories/shared?id=${encodeURIComponent(trimmedId)}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.memory) {
+        return data.memory
+      }
+    }
+  } catch (err) {
+    console.warn('fetchSharedMemoryById error:', err)
+  }
+
+  return null
+}
+
 
 
 

@@ -73,7 +73,7 @@ export function MemoriesScreen({
       } finally {
         if (active) setIsSearchingSemantic(false)
       }
-    }, 300)
+    }, 250)
 
     return () => {
       active = false

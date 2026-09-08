@@ -160,13 +160,15 @@ export function RediscoverImportModal({
 
       // Step 2: Direct parallel upload to Supabase Storage (P0 & P3: Concurrency limit 5)
       setProcessingStep(2)
-      setProcessingStatus('Uploading photos directly to storage...')
 
       const rawInputs: RawPastPhotoInput[] = []
       const UPLOAD_CONCURRENCY = 5
 
       for (let i = 0; i < selectedFiles.length; i += UPLOAD_CONCURRENCY) {
         const chunk = selectedFiles.slice(i, i + UPLOAD_CONCURRENCY)
+        const currentProgress = Math.min(i + UPLOAD_CONCURRENCY, selectedFiles.length)
+        setProcessingStatus(`Uploading past photo ${currentProgress} of ${selectedFiles.length}...`)
+
         const chunkResults = await Promise.all(
           chunk.map(async (f) => {
             const ext = f.fileName.split('.').pop()?.toLowerCase() || 'jpg'
@@ -210,7 +212,7 @@ export function RediscoverImportModal({
 
       // Step 3: Cluster & Understand via lightweight metadata payload (<10KB)
       setProcessingStep(3)
-      setProcessingStatus('Clustering moments & generating AI memory understanding...')
+      setProcessingStatus(`Understanding moments from ${rawInputs.length} photo${rawInputs.length === 1 ? '' : 's'}...`)
 
       const result = await uploadAndProcessPastPhotosAction({
         jobId,

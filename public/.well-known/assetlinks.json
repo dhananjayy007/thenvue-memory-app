@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.thenvue.app",
+      "sha256_cert_fingerprints": [
+        "88:3E:F9:6E:50:11:4E:81:91:28:59:F3:F4:C1:EF:98:D2:72:74:B3:5C:5C:92:2D:FA:2E:78:7F:4C:F8:6B:F2"
+      ]
+    }
+  }
+]

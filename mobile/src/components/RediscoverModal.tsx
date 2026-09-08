@@ -121,7 +121,7 @@ export function RediscoverModal({
   const handleProcessPhotos = async () => {
     if (selectedPhotos.length === 0) return
     setStage('processing')
-    setProcessingStatus(`Processing ${selectedPhotos.length} past photo${selectedPhotos.length === 1 ? '' : 's'}...`)
+    setProcessingStatus(`Preparing ${selectedPhotos.length} past photo${selectedPhotos.length === 1 ? '' : 's'}...`)
 
     try {
       const inputs: MobilePastPhotoInput[] = selectedPhotos.map((p) => ({
@@ -130,7 +130,10 @@ export function RediscoverModal({
         fileSize: p.fileSize,
       }))
 
-      const result = await uploadAndProcessPastPhotosMobile({ photos: inputs })
+      const result = await uploadAndProcessPastPhotosMobile({
+        photos: inputs,
+        onProgress: (status) => setProcessingStatus(status),
+      })
       setDuplicateCount(result.duplicateCount)
       setFailedCount(result.failedCount)
       setCandidates(result.candidates)

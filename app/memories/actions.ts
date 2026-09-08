@@ -2012,7 +2012,7 @@ export async function uploadAndProcessPastPhotosAction({
   const UPLOAD_CONCURRENCY = 5
   for (let i = 0; i < validPhotos.length; i += UPLOAD_CONCURRENCY) {
     const chunk = validPhotos.slice(i, i + UPLOAD_CONCURRENCY)
-    await Promise.all(
+    const chunkResults = await Promise.all(
       chunk.map(async (photo) => {
         try {
           const ext = photo.fileName.split('.').pop()?.toLowerCase() || 'jpg'
@@ -2069,8 +2069,7 @@ export async function uploadAndProcessPastPhotosAction({
           const assetId = crypto.randomUUID()
           storagePathsForSigning.push(storagePath)
 
-          // Insert into imported_assets
-          await supabase.from('imported_assets').insert({
+          const assetPayload = {
             id: assetId,
             user_id: user.id,
             import_job_id: jobId,
@@ -2083,7 +2082,7 @@ export async function uploadAndProcessPastPhotosAction({
             file_size: photo.fileSize,
             content_hash: photo.computedHash,
             processing_status: 'processed',
-          })
+          }
 
           uploadedAssets.push({
             id: assetId,
@@ -2105,11 +2104,22 @@ export async function uploadAndProcessPastPhotosAction({
             processingStatus: 'processed',
             createdAt: new Date().toISOString(),
           })
+
+          return assetPayload
         } catch {
           failedCount++
+          return null
         }
       })
     )
+
+    const validBatchAssets = (chunkResults.filter(Boolean) as Record<string, any>[])
+    if (validBatchAssets.length > 0) {
+      const { error: batchInsertErr } = await supabase.from('imported_assets').insert(validBatchAssets)
+      if (batchInsertErr) {
+        console.warn('Batch insert imported_assets warning:', batchInsertErr)
+      }
+    }
   }
 
   // P4: Batch signed URL creation in 1 single roundtrip
@@ -2386,38 +2396,38 @@ export async function saveRediscoveredMemoryAction({
 
   if (memError || !memoryData) throw new Error(memError?.message || 'Could not save rediscovered memory.')
 
-  // Attach media in parallel
+  // Attach media in single batch insert
   const mediaRows: MediaRow[] = []
   if (storagePaths.length > 0) {
-    const insertedMedia = await Promise.all(
-      storagePaths.map(async (path) => {
-        const fileName = path.split('/').pop() || 'photo.jpg'
-        const { data: mRow } = await supabase
-          .from('media')
-          .insert({
-            memory_id: memoryData.id,
-            user_id: user.id,
-            storage_path: path,
-            media_type: 'image',
-            file_name: fileName,
-            file_size: 150000,
-            source_type: 'past_import',
-          })
-          .select('id, memory_id, user_id, storage_path, media_type, file_name, file_size, created_at, source_type')
-          .single()
+    const toInsert = storagePaths.map((path) => {
+      const fileName = path.split('/').pop() || 'photo.jpg'
+      return {
+        memory_id: memoryData.id,
+        user_id: user.id,
+        storage_path: path,
+        media_type: 'image',
+        file_name: fileName,
+        file_size: 150000,
+        source_type: 'past_import',
+      }
+    })
 
-        if (mRow) {
-          await supabase
-            .from('imported_assets')
-            .update({ memory_id: memoryData.id, media_id: mRow.id })
-            .eq('storage_path', path)
-            .eq('user_id', user.id)
-        }
-        return mRow
-      })
-    )
-    for (const m of insertedMedia) {
-      if (m) mediaRows.push(m as any)
+    const { data: insertedMedia, error: mediaInsertErr } = await supabase
+      .from('media')
+      .insert(toInsert)
+      .select('id, memory_id, user_id, storage_path, media_type, file_name, file_size, created_at, source_type')
+
+    if (!mediaInsertErr && insertedMedia) {
+      for (const m of insertedMedia) {
+        mediaRows.push(m as any)
+      }
+
+      // Batch link imported_assets in a single update
+      await supabase
+        .from('imported_assets')
+        .update({ memory_id: memoryData.id })
+        .in('storage_path', storagePaths)
+        .eq('user_id', user.id)
     }
   }
 

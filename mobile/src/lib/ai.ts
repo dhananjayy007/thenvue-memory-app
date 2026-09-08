@@ -1,7 +1,7 @@
 import type { Memory, MemoryType, ConnectedMemory, AskAnswer, AskSourceMemory } from '../types/memory'
 import { supabase } from './supabase'
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000'
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://thenvue.com'
 
 export type TagResult = {
   title: string
@@ -81,15 +81,24 @@ export async function embedText(text: string): Promise<number[] | null> {
   }
 }
 
+export type ConversationTurn = {
+  question: string
+  answer: string
+}
+
 export type AskMyLifeResult = {
   query: string
   answer: string
   sources: Memory[]
 }
 
-export async function askMyLife(question: string, memories: Memory[] = []): Promise<AskMyLifeResult> {
+export async function askMyLife(
+  question: string,
+  memories: Memory[] = [],
+  history: ConversationTurn[] = []
+): Promise<AskMyLifeResult> {
   try {
-    const data = await callAiProxy('ask', { question })
+    const data = await callAiProxy('ask', { question, history })
     return {
       query: data.query || question,
       answer: data.answer || "I couldn't find an answer.",

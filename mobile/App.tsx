@@ -31,6 +31,7 @@ import {
   addPhotoToMemory,
   fetchNotifications,
   fetchMemoryDetails,
+  fetchSharedMemoryById,
   deletePerspective,
 } from './src/lib/memories'
 
@@ -240,26 +241,57 @@ function MainContent() {
       }
     })
 
-    // Global deep link listener for OAuth redirects
+    // Global deep link listener for OAuth redirects & Shared Memory Links
     const handleDeepLink = async (url: string) => {
-      if (!url || (!url.includes('access_token') && !url.includes('code='))) return
+      if (!url) return
       try {
-        const hashPart = url.includes('#') ? url.split('#')[1] : ''
-        const hashParams = new URLSearchParams(hashPart)
-        const accessToken = hashParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token')
+        // 1. OAuth Redirects
+        if (url.includes('access_token') || url.includes('code=')) {
+          const hashPart = url.includes('#') ? url.split('#')[1] : ''
+          const hashParams = new URLSearchParams(hashPart)
+          const accessToken = hashParams.get('access_token')
+          const refreshToken = hashParams.get('refresh_token')
 
-        const queryPart = url.includes('?') ? url.split('?')[1].split('#')[0] : ''
-        const queryParams = new URLSearchParams(queryPart)
-        const code = queryParams.get('code') || hashParams.get('code')
+          const queryPart = url.includes('?') ? url.split('?')[1].split('#')[0] : ''
+          const queryParams = new URLSearchParams(queryPart)
+          const code = queryParams.get('code') || hashParams.get('code')
 
-        if (accessToken && refreshToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-        } else if (code) {
-          await supabase.auth.exchangeCodeForSession(code)
+          if (accessToken && refreshToken) {
+            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          } else if (code) {
+            await supabase.auth.exchangeCodeForSession(code)
+          }
+          return
+        }
+
+        // 2. Shared Memory Links (thenvue://share/:id, https://thenvue.com/share/:id, exp://.../--/share/:id, ?openMemory=:id)
+        const shareMatch = url.match(
+          /(?:thenvue:\/\/share\/|https?:\/\/(?:www\.)?thenvue\.com\/share\/|exp:\/\/.*\/--\/share\/|\/share\/|\b(?:openMemory|id)=)([a-zA-Z0-9_-]+)/i
+        )
+        if (shareMatch && shareMatch[1]) {
+          const memoryId = shareMatch[1]
+          if (memoryId === 'auth' || memoryId === 'callback' || memoryId === 'login') return
+
+          // If memory already exists in local list, open instantly
+          const localMemory = memories.find((m) => m.id === memoryId)
+          if (localMemory) {
+            setSelectedMemory(localMemory)
+            return
+          }
+
+          // Otherwise fetch shared memory details via API / Supabase
+          const sharedMemory = await fetchSharedMemoryById(memoryId)
+          if (sharedMemory) {
+            setSelectedMemory(sharedMemory)
+          } else {
+            Alert.alert(
+              'Memory Not Found',
+              'This shared moment is either private, removed, or you do not have permission to view it.'
+            )
+          }
         }
       } catch (err) {
-        console.warn('Global deep link auth error:', err)
+        console.warn('Global deep link error:', err)
       }
     }
 
@@ -270,7 +302,7 @@ function MainContent() {
       subscription.unsubscribe()
       linkSub.remove()
     }
-  }, [memories.length, loadNotificationCount])
+  }, [memories, loadNotificationCount])
 
   // Load Memories (Page 1 - Fast initial load <500ms)
   const loadMemories = useCallback(async () => {

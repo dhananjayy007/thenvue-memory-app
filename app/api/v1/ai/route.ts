@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
 
     if (action === 'ask') {
       const question = typeof body.question === 'string' ? body.question : ''
-      const result = await answerQuestion(question, auth.client)
+      const history = Array.isArray(body.history) ? body.history : []
+      const result = await answerQuestion(question, auth.client, history)
       return NextResponse.json(result)
     }
 

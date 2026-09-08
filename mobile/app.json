@@ -15,6 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.thenvue.app",
+      "associatedDomains": [
+        "applinks:thenvue.com",
+        "applinks:www.thenvue.com"
+      ],
       "icon": "./assets/brand/master/thenvue-logo-square-1024.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Thenvue uses your camera to capture photos of moments you want to remember.",
@@ -26,6 +30,32 @@
     "android": {
       "package": "com.thenvue.app",
       "versionCode": 1,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "thenvue.com",
+              "pathPrefix": "/share"
+            },
+            {
+              "scheme": "https",
+              "host": "www.thenvue.com",
+              "pathPrefix": "/share"
+            },
+            {
+              "scheme": "thenvue",
+              "host": "share"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
         "backgroundImage": "./assets/android/mipmap-xxxhdpi/ic_launcher_background.png",

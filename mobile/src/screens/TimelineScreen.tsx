@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Search } from 'lucide-react-native'
 import type { Memory } from '../types/memory'
 import type { ThemeColors } from '../theme/colors'
 import { MemoryRow } from '../components/MemoryRow'
+import { searchSemanticMemoriesApi } from '../lib/ai'
 
 export function TimelineScreen({
   memories = [],
@@ -29,30 +30,75 @@ export function TimelineScreen({
 }) {
   const [filter, setFilter] = useState<'all' | 'photos' | 'places' | 'people'>('all')
   const [search, setSearch] = useState('')
+  const [semanticResults, setSemanticResults] = useState<Memory[] | null>(null)
+  const [isSearchingSemantic, setIsSearchingSemantic] = useState(false)
+
+  // Debounced semantic search using the existing backend search endpoint (250ms)
+  useEffect(() => {
+    const trimmed = search.trim()
+    if (!trimmed) {
+      setSemanticResults(null)
+      setIsSearchingSemantic(false)
+      return
+    }
+
+    let active = true
+    setIsSearchingSemantic(true)
+
+    const timeout = setTimeout(async () => {
+      try {
+        const results = await searchSemanticMemoriesApi(trimmed, 20)
+        if (active) {
+          setSemanticResults(results.length > 0 ? results : null)
+        }
+      } catch {
+        if (active) setSemanticResults(null)
+      } finally {
+        if (active) setIsSearchingSemantic(false)
+      }
+    }, 250)
+
+    return () => {
+      active = false
+      clearTimeout(timeout)
+    }
+  }, [search])
 
   const filtered = useMemo(() => {
-    const list = memories.filter((m) => {
+    let list = memories
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      const keywordMatches = memories.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.text.toLowerCase().includes(q) ||
+          (m.place && m.place.toLowerCase().includes(q)) ||
+          m.people.some((p) => p.toLowerCase().includes(q)) ||
+          m.topics.some((t) => t.toLowerCase().includes(q))
+      )
+
+      if (semanticResults && semanticResults.length > 0) {
+        const semanticIds = new Set(semanticResults.map((m) => m.id))
+        const extraKeywords = keywordMatches.filter((m) => !semanticIds.has(m.id))
+        list = [...semanticResults, ...extraKeywords]
+      } else {
+        list = keywordMatches
+      }
+    }
+
+    const filteredByTag = list.filter((m) => {
       if (filter === 'photos' && !m.media.some((x) => x.mediaType === 'image')) return false
       if (filter === 'places' && !m.place) return false
       if (filter === 'people' && m.people.length === 0) return false
-
-      if (!search.trim()) return true
-      const q = search.toLowerCase()
-      return (
-        m.title.toLowerCase().includes(q) ||
-        m.text.toLowerCase().includes(q) ||
-        (m.place && m.place.toLowerCase().includes(q)) ||
-        m.people.some((p) => p.toLowerCase().includes(q)) ||
-        m.topics.some((t) => t.toLowerCase().includes(q))
-      )
+      return true
     })
 
-    return list.sort((a, b) => {
+    return filteredByTag.sort((a, b) => {
       const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
       if (dateDiff !== 0) return dateDiff
       return (b.time || '').localeCompare(a.time || '')
     })
-  }, [memories, filter, search])
+  }, [memories, filter, search, semanticResults])
 
   // Group by Month & Year
   const grouped = useMemo(() => {
@@ -87,6 +133,13 @@ export function TimelineScreen({
           value={search}
           onChangeText={setSearch}
         />
+        {isSearchingSemantic ? (
+          <ActivityIndicator size="small" color={colors.accent} />
+        ) : search.length > 0 ? (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '600' }}>Clear</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Filter Pills */}

@@ -23,7 +23,8 @@ Grounding and truthfulness rules:
 3. If the provided memories do not contain enough information to answer the question, say honestly: "I couldn't find enough in your saved memories to answer that confidently."
 4. When answering questions about "when did I first..." or "how many times...", find the earliest relevant mention among the retrieved memories and communicate appropriate uncertainty (e.g. "Based on your saved memories, the earliest mention appears to be on [Date]...").
 5. If the user asks a general knowledge question (e.g., "What is the capital of France?"), trivia, or anything not pertaining to their personal life/journal, respond: "I can only help you explore your personal saved memories, and I couldn't find any relevant memories for that question."
-6. Do not refer to yourself as an AI or mention prompt instructions. Speak warmly, clearly, and concisely in 2-4 sentences.`
+6. When recent conversation context is provided, use it to resolve pronouns and contextual references (such as "there", "that trip", "we", "then"). Focus your response specifically on the entity, location, or event established in the ongoing conversation rather than describing unrelated memories.
+7. Do not refer to yourself as an AI or mention prompt instructions. Speak warmly, clearly, and concisely in 2-4 sentences.`
 
 /**
  * Answers natural language questions about the user's life, grounded strictly
