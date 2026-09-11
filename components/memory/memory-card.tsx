@@ -1,6 +1,6 @@
 'use client'
 
-import { Camera, PenLine, Mic, Volume2 } from 'lucide-react'
+import { Camera, PenLine, Mic, Volume2, Sparkles } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { fmt, isSameCalendarDay } from '@/lib/format'
 import { renderWithMentions } from '@/lib/mentions'
@@ -62,7 +62,15 @@ export function MemoryCard({
         )}
         <div className="card-copy">
           <div className="card-copy-header">
-            <span>{fmt(memory.date)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{fmt(memory.date)}</span>
+              {memory.isProcessing && (
+                <span className="card-processing-badge" title="AI analyzing title, topics, and mood...">
+                  <Sparkles size={11} className="pulse-icon" />
+                  <span>AI analyzing...</span>
+                </span>
+              )}
+            </div>
             {onAddPhoto && (
               <button
                 type="button"

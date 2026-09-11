@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Film, PenLine } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { PageIntro } from '@/components/shared/page-intro'
 import { MemoryCard } from '@/components/memory/memory-card'
@@ -12,6 +12,7 @@ export function Memories({
   query,
   setQuery,
   onCapture,
+  onStartImport,
   focusTrigger,
 }: {
   memories: Memory[]
@@ -19,6 +20,7 @@ export function Memories({
   query: string
   setQuery: (v: string) => void
   onCapture?: () => void
+  onStartImport?: () => void
   focusTrigger?: number
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -65,13 +67,22 @@ export function Memories({
             </>
           ) : (
             <>
-              <h3>No memories captured yet</h3>
-              <p>Capture your first memory to begin gathering the moments that make up your life.</p>
-              {onCapture && (
-                <button type="button" className="voice-action-btn" onClick={onCapture}>
-                  Capture a memory
-                </button>
-              )}
+              <h3>No memories written yet</h3>
+              <p>Write down what mattered today, or bring in past photos to begin gathering the moments of your life.</p>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {onCapture && (
+                  <button type="button" className="voice-action-btn" onClick={onCapture}>
+                    <PenLine size={15} />
+                    <span>Write your first memory</span>
+                  </button>
+                )}
+                {onStartImport && (
+                  <button type="button" className="voice-action-btn voice-action-secondary" onClick={onStartImport}>
+                    <Film size={15} />
+                    <span>Bring in past photos</span>
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>

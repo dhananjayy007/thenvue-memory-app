@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, ChevronRight, RotateCcw, Send } from 'lucide-react'
+import { ArrowRight, ChevronRight, Film, Loader2, PenLine, RotateCcw, Send, Sparkles } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 import type { Memory } from '@/types/memory'
 import { PageIntro } from '@/components/shared/page-intro'
@@ -12,19 +12,21 @@ import { FeatureTip } from '@/components/shared/feature-tip'
 
 const SUGGESTED_QUESTIONS = [
   'When did I first mention wanting to change jobs?',
-  'What trips did I take with Rahul?',
+  'What trips did I take with Alex?',
   'What was I doing this time last year?',
   'Show me my happiest memories from 2026.',
   'What places have I visited most?',
 ]
 
 export function Ask({
-  memories: _allMemories,
+  memories,
   ask: controlledAsk,
   setAsk: setControlledAsk,
   answer: _answerProp,
   setAnswer: _setAnswerProp,
   onOpen,
+  onCapture,
+  onStartImport,
 }: {
   memories: Memory[]
   ask: string
@@ -32,6 +34,8 @@ export function Ask({
   answer: boolean
   setAnswer: (v: boolean) => void
   onOpen: (m: Memory) => void
+  onCapture?: () => void
+  onStartImport?: () => void
 }) {
   const [question, setQuestion] = useState(controlledAsk || '')
   const [loading, setLoading] = useState(false)
@@ -67,6 +71,8 @@ export function Ask({
     setError(null)
   }
 
+  const hasZeroMemories = memories.length === 0
+
   return (
     <div className="page ask-page">
       <PageIntro
@@ -79,70 +85,111 @@ export function Ask({
         storageKey="ask_page_intro"
         icon={<CustomBrainIcon size={16} />}
         title="Ask Your Memory Private AI"
-        description="Search your moments by concept, feeling, or people (e.g., 'trips with Rahul' or 'times I felt at peace')."
+        description="Search your moments by concept, feeling, or people (e.g., 'trips with Alex' or 'times I felt at peace')."
         secondaryActionLabel="Got it"
       />
 
-      <div className="ask-box">
-        <CustomBrainIcon size={18} />
-        <input
-          value={question}
-          onChange={(e) => {
-            setQuestion(e.target.value)
-            setControlledAsk(e.target.value)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
-              handleAsk()
-            }
-          }}
-          disabled={loading}
-          placeholder="What do you want to remember?"
-        />
-        <button
-          aria-label="Ask"
-          onClick={() => handleAsk()}
-          disabled={loading || !question.trim()}
-          style={{ opacity: loading || !question.trim() ? 0.6 : 1 }}
-        >
-          <Send size={16} />
-        </button>
-      </div>
-
-      {!currentResult && !loading && (
-        <div className="suggested">
-          <p>Try asking</p>
-          {SUGGESTED_QUESTIONS.map((q) => (
-            <button
-              key={q}
-              onClick={() => {
-                setQuestion(q)
-                setControlledAsk(q)
-                handleAsk(q)
-              }}
-            >
-              {q}
-              <ArrowRight size={14} />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {loading && (
-        <div className="answer">
-          <div className="answer-label">
-            <CustomBrainIcon size={15} /> Reflecting on your memories...
+      {hasZeroMemories ? (
+        <div className="empty-state-card" style={{ marginTop: 24 }}>
+          <div className="empty-state-icon">
+            <CustomBrainIcon size={24} />
           </div>
-          <p className="answer-note" style={{ marginTop: 12 }}>
-            Searching your timeline and retrieving relevant moments...
+          <h3>Ask Your Life needs memories to reflect on</h3>
+          <p>
+            Your private AI assistant searches and cites your saved moments. Once you write or bring in your first memories, you can ask questions about your past, places you visited, and people in your life.
           </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {onCapture && (
+              <button type="button" className="voice-action-btn" onClick={onCapture}>
+                <PenLine size={15} />
+                <span>Write your first memory</span>
+              </button>
+            )}
+            {onStartImport && (
+              <button type="button" className="voice-action-btn voice-action-secondary" onClick={onStartImport}>
+                <Film size={15} />
+                <span>Bring in past photos</span>
+              </button>
+            )}
+          </div>
         </div>
-      )}
+      ) : (
+        <>
+          <div className="ask-box">
+            <CustomBrainIcon size={18} />
+            <input
+              value={question}
+              onChange={(e) => {
+                setQuestion(e.target.value)
+                setControlledAsk(e.target.value)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                  handleAsk()
+                }
+              }}
+              disabled={loading}
+              placeholder="What do you want to remember?"
+            />
+            <button
+              aria-label="Ask"
+              onClick={() => handleAsk()}
+              disabled={loading || !question.trim()}
+              style={{ opacity: loading || !question.trim() ? 0.6 : 1 }}
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            </button>
+          </div>
 
-      {error && !loading && (
-        <div className="answer">
-          <p className="auth-error">{error}</p>
-        </div>
+          {!currentResult && !loading && (
+            <div className="suggested">
+              <p>Try asking</p>
+              {SUGGESTED_QUESTIONS.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => {
+                    setQuestion(q)
+                    setControlledAsk(q)
+                    handleAsk(q)
+                  }}
+                >
+                  {q}
+                  <ArrowRight size={14} />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {loading && (
+            <div className="answer ai-thinking-card">
+              <div className="answer-label">
+                <CustomBrainIcon size={15} className="pulse-icon" />
+                <span>Reflecting on your memories...</span>
+              </div>
+              <div className="ai-thinking-progress">
+                <div className="ai-thinking-bar" />
+              </div>
+              <p className="answer-note" style={{ marginTop: 12 }}>
+                Searching your private timeline and synthesizing relevant moments...
+              </p>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="answer">
+              <p className="auth-error">{error}</p>
+              <button
+                type="button"
+                className="text-button"
+                style={{ marginTop: 8, fontSize: 12 }}
+                onClick={() => handleAsk()}
+              >
+                <RotateCcw size={13} style={{ display: 'inline', marginRight: 4 }} />
+                Try asking again
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {currentResult && !loading && (

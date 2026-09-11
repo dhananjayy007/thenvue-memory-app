@@ -15,6 +15,7 @@ export function Home({
   onOpen,
   onGo,
   onAddPhoto,
+  onStartImport,
   displayName,
 }: {
   memories: Memory[]
@@ -23,6 +24,7 @@ export function Home({
   onOpen: (m: Memory) => void
   onGo: (v: string) => void
   onAddPhoto?: (m: Memory) => void
+  onStartImport?: () => void
   displayName: string
 }) {
   const now = new Date()
@@ -103,27 +105,65 @@ export function Home({
         <button onClick={onCapture}>
           <PenLine size={15} /> Write
         </button>
-        <button onClick={onCaptureVoice || onCapture}>
-          <Mic size={15} /> Speak
-        </button>
         <button onClick={onCapture}>
           <Camera size={15} /> Add photo
         </button>
+        <button onClick={onCaptureVoice || onCapture}>
+          <Mic size={15} /> Voice note
+        </button>
         <button onClick={() => onGo('rediscover')}>
-          <Film size={15} /> Rediscover
+          <Film size={15} /> Bring in photos
         </button>
       </div>
 
       {memories.length === 0 ? (
-        <div className="empty-state-card">
-          <div className="empty-state-icon">
-            <CustomBrainIcon size={24} />
+        <div className="home-empty-import-card">
+          <div className="home-empty-import-badge">
+            <Film size={13} />
+            <span>GET STARTED</span>
           </div>
-          <h3>Your story starts here</h3>
-          <p>Capture a thought, moment, photo, or voice memory to begin building your private timeline.</p>
-          <button type="button" className="voice-action-btn" style={{ marginTop: 8 }} onClick={onCapture}>
-            Capture your first memory
-          </button>
+
+          <div className="home-empty-import-content">
+            <h2 className="home-empty-import-title">Start your private memory journal</h2>
+            <p className="home-empty-import-desc">
+              Write down what mattered today. Add a photo or voice reflection whenever you want. You can also bring in past photo archives to reconstruct forgotten moments along your timeline.
+            </p>
+
+            <div className="home-empty-import-features">
+              <div className="home-empty-feature-item">
+                <PenLine size={14} />
+                <span>Write freely with AI retrieval</span>
+              </div>
+              <div className="home-empty-feature-item">
+                <Compass size={14} />
+                <span>Private & isolated by design</span>
+              </div>
+              <div className="home-empty-feature-item">
+                <Film size={14} />
+                <span>Optional past photo imports</span>
+              </div>
+            </div>
+
+            <div className="home-empty-import-actions">
+              <button
+                type="button"
+                className="home-import-primary-btn"
+                onClick={onCapture}
+              >
+                <PenLine size={16} />
+                <span>Write your first memory</span>
+                <ArrowRight size={15} />
+              </button>
+              <button
+                type="button"
+                className="home-import-secondary-btn"
+                onClick={onStartImport || (() => onGo('rediscover'))}
+              >
+                <Film size={15} />
+                <span>Bring in past photos</span>
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <>

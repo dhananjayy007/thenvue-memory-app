@@ -27,7 +27,7 @@ import { CustomBrainIcon } from '../components/CustomBrainIcon'
 const { width } = Dimensions.get('window')
 const cardWidth = (width - 40) / 2
 
-export function HomeScreen({
+export const HomeScreen = React.memo(function HomeScreen({
   memories = [],
   colors,
   displayName,
@@ -87,7 +87,7 @@ export function HomeScreen({
 
   const sortedMemories = useMemo(() => {
     return [...memories].sort((a, b) => {
-      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+      const dateDiff = (b.date || '').localeCompare(a.date || '')
       if (dateDiff !== 0) return dateDiff
       return (b.time || '').localeCompare(a.time || '')
     })
@@ -223,7 +223,7 @@ export function HomeScreen({
       </View>
     </ScrollView>
   )
-}
+})
 
 const styles = StyleSheet.create({
   container: {

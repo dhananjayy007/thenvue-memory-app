@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, Film, PenLine } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { PageIntro } from '@/components/shared/page-intro'
 import { MemoryRow } from '@/components/memory/memory-row'
@@ -12,6 +12,7 @@ export function Timeline({
   query,
   setQuery,
   onCapture,
+  onStartImport,
   hasMore,
   isLoadingMore,
   onLoadMore,
@@ -21,6 +22,7 @@ export function Timeline({
   query: string
   setQuery: (v: string) => void
   onCapture?: () => void
+  onStartImport?: () => void
   hasMore?: boolean
   isLoadingMore?: boolean
   onLoadMore?: () => void
@@ -129,12 +131,21 @@ export function Timeline({
           ) : (
             <>
               <h3>Your timeline is waiting</h3>
-              <p>Capture your first memory to begin building a chronological record of your moments.</p>
-              {onCapture && (
-                <button type="button" className="voice-action-btn" onClick={onCapture}>
-                  Capture a memory
-                </button>
-              )}
+              <p>Write down what mattered today, or bring in past photos to build your timeline.</p>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {onCapture && (
+                  <button type="button" className="voice-action-btn" onClick={onCapture}>
+                    <PenLine size={15} />
+                    <span>Write your first memory</span>
+                  </button>
+                )}
+                {onStartImport && (
+                  <button type="button" className="voice-action-btn voice-action-secondary" onClick={onStartImport}>
+                    <Film size={15} />
+                    <span>Bring in past photos</span>
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>

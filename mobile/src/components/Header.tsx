@@ -5,7 +5,7 @@ import { Search, Sun, Moon, Plus, Bell, Sparkles } from 'lucide-react-native'
 import type { ThemeColors } from '../theme/colors'
 import { ThenvueLogo } from './ThenvueLogo'
 
-export function Header({
+export const Header = React.memo(function Header({
   colors,
   dark,
   title = 'Thenvue',
@@ -68,7 +68,7 @@ export function Header({
       </View>
     </View>
   )
-}
+})
 
 const styles = StyleSheet.create({
   container: {

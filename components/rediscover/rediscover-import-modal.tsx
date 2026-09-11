@@ -534,7 +534,7 @@ export function RediscoverImportModal({
                               <input
                                 type="text"
                                 value={candidate.people?.join(', ') || ''}
-                                placeholder="e.g. Mom, Rahul"
+                                placeholder="e.g. Mom, Alex"
                                 onChange={(e) =>
                                   handleUpdateCandidateField(
                                     candidate.id,

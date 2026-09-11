@@ -6,17 +6,17 @@ export function LandingPrivacySection() {
   const pillars = [
     {
       title: 'Private by design',
-      desc: 'Your entries, photos, and recordings are strictly yours. Guarded by isolated database security.',
+      desc: 'Your entries, photos, and recordings are strictly yours. Guarded by isolated database row-level security.',
       icon: ShieldCheck,
     },
     {
-      title: 'No ads',
-      desc: 'We never sell your data, track your behavior, or commercialize your personal reflections.',
+      title: 'No ads, ever',
+      desc: 'We never sell your data, track your behavior across sites, or commercialize your personal reflections.',
       icon: EyeOff,
     },
     {
       title: 'No social feed',
-      desc: 'A sanctuary for honest self-expression without likes, algorithms, or performative distractions.',
+      desc: 'A quiet sanctuary for honest self-reflection without likes, algorithms, or performative distractions.',
       icon: Sparkles,
     },
   ]
@@ -44,11 +44,11 @@ export function LandingPrivacySection() {
         })}
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 28, display: 'flex', justifyContent: 'center', gap: 20 }}>
-        <a href="/privacy" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+      <div className="privacy-trust-links">
+        <a href="/privacy" className="trust-inline-link">
           Read our Privacy Policy →
         </a>
-        <a href="/ai-data" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+        <a href="/ai-data" className="trust-inline-link">
           AI & Data Transparency →
         </a>
       </div>

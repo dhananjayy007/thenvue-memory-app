@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, ArrowRight } from 'lucide-react'
+import { Menu, X, ArrowRight, Sun, Moon } from 'lucide-react'
 import { ThenvueLogo } from '@/components/icons/thenvue-logo'
+import { useTheme } from '@/lib/theme'
 
 export function LandingNavbar({ user }: { user?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [theme, toggleTheme] = useTheme()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -23,22 +25,28 @@ export function LandingNavbar({ user }: { user?: boolean }) {
         {/* Brand */}
         <Link href="/" className="landing-brand">
           <span className="landing-brand-mark">
-            <ThenvueLogo size={28} />
+            <ThenvueLogo size={26} />
           </span>
           <span className="landing-brand-name">Thenvue</span>
         </Link>
 
-        {/* Minimal Nav Links */}
+        {/* Editorial Navigation Links */}
         <div className="landing-nav-links">
-          <a href="#how-it-works" className="landing-nav-link">
-            How it works
+          <a href="#ask-your-life" className="landing-nav-link">
+            Search
+          </a>
+          <a href="#rediscover" className="landing-nav-link">
+            Rediscover
+          </a>
+          <a href="#shared-memories" className="landing-nav-link">
+            Shared Memories
           </a>
           <a href="#privacy" className="landing-nav-link">
             Privacy
           </a>
           {user ? (
             <Link href="/app" className="landing-nav-link">
-              Your Memories
+              Your Space
             </Link>
           ) : (
             <Link href="/login" className="landing-nav-link">
@@ -47,37 +55,72 @@ export function LandingNavbar({ user }: { user?: boolean }) {
           )}
         </div>
 
-        {/* Action CTA */}
+        {/* Action Row: Theme Toggle + CTA */}
         <div className="landing-nav-actions">
+          <button
+            type="button"
+            className="landing-theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+
           <Link
             href={user ? '/app' : '/login'}
             className="landing-nav-cta-btn"
           >
-            <span>{user ? 'Open Thenvue' : 'Try Thenvue'}</span>
+            <span>{user ? 'Open Space' : 'Try Thenvue'}</span>
             <ArrowRight size={13} />
           </Link>
         </div>
 
         {/* Mobile Hamburger Toggle */}
-        <button
-          type="button"
-          className="landing-mobile-toggle"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Toggle navigation menu"
-        >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+        <div className="landing-mobile-actions-group">
+          <button
+            type="button"
+            className="landing-theme-toggle-btn mobile-only-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+
+          <button
+            type="button"
+            className="landing-mobile-toggle"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle navigation menu"
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
       </nav>
 
       {/* Mobile Menu Dropdown */}
       {mobileOpen && (
         <div className="landing-mobile-menu">
           <a
-            href="#how-it-works"
+            href="#ask-your-life"
             className="landing-mobile-link"
             onClick={() => setMobileOpen(false)}
           >
-            How it works
+            Search
+          </a>
+          <a
+            href="#rediscover"
+            className="landing-mobile-link"
+            onClick={() => setMobileOpen(false)}
+          >
+            Rediscover
+          </a>
+          <a
+            href="#shared-memories"
+            className="landing-mobile-link"
+            onClick={() => setMobileOpen(false)}
+          >
+            Shared Memories
           </a>
           <a
             href="#privacy"
@@ -92,7 +135,7 @@ export function LandingNavbar({ user }: { user?: boolean }) {
               className="landing-mobile-link"
               onClick={() => setMobileOpen(false)}
             >
-              Your Memories
+              Your Space
             </Link>
           ) : (
             <Link
@@ -109,7 +152,7 @@ export function LandingNavbar({ user }: { user?: boolean }) {
               className="landing-nav-cta-btn"
               onClick={() => setMobileOpen(false)}
             >
-              <span>{user ? 'Open Thenvue' : 'Try Thenvue'}</span>
+              <span>{user ? 'Open Space' : 'Try Thenvue'}</span>
               <ArrowRight size={14} />
             </Link>
           </div>

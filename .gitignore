@@ -34,3 +34,4 @@ __v0_jsx-dev-runtime.ts
 Thumbs.db
 .vscode/
 .idea/
+supabase/.temp/

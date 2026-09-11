@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -13,21 +13,47 @@ import {
   Download,
   Globe,
   Bell,
+  AlertCircle,
+  Compass,
+  PlusSquare,
+  Check,
 } from 'lucide-react'
+import { ThenvueLogo } from '@/components/icons/thenvue-logo'
+import { joinWaitlistAction } from '@/app/actions/waitlist'
 
 export function IosComingSoonContent() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isIosSafari, setIsIosSafari] = useState<boolean | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const ua = window.navigator.userAgent
+    const isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|mercury/i.test(ua)
+    setIsIosSafari(isIos && isSafari)
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !email.includes('@')) return
     setLoading(true)
-    setTimeout(() => {
+    setError(null)
+
+    try {
+      const res = await joinWaitlistAction({ email, platform: 'ios' })
+      if (res.success) {
+        setSubmitted(true)
+      } else {
+        setError(res.error || 'Unable to join waitlist. Please try again.')
+      }
+    } catch {
+      setError('An unexpected error occurred. Please try again.')
+    } finally {
       setLoading(false)
-      setSubmitted(true)
-    }, 600)
+    }
   }
 
   return (
@@ -43,20 +69,7 @@ export function IosComingSoonContent() {
           <span>Back to Home</span>
         </Link>
         <div className="ios-nav-brand">
-          <div className="ios-logo-mark">
-            <svg width="24" height="24" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="nav-feather" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#E3A07C" />
-                  <stop offset="100%" stopColor="#C97D57" />
-                </linearGradient>
-              </defs>
-              <circle cx="512" cy="512" r="352" fill="none" stroke="url(#nav-feather)" strokeWidth="40"/>
-              <g transform="translate(512,512)">
-                <path d="M -150,150 C -170,60 -140,-70 -20,-190 C 40,-250 120,-260 150,-250 C 160,-210 150,-130 90,-60 C 40,-2 -30,40 -70,90 C -90,115 -110,140 -150,150 Z" fill="url(#nav-feather)"/>
-              </g>
-            </svg>
-          </div>
+          <ThenvueLogo size={24} />
           <span className="ios-brand-title">Thenvue</span>
         </div>
         <Link href="/login" className="ios-nav-login">
@@ -115,6 +128,12 @@ export function IosComingSoonContent() {
                   <ArrowRight size={15} />
                 </button>
               </div>
+              {error && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f87171', fontSize: 12 }}>
+                  <AlertCircle size={14} />
+                  <span>{error}</span>
+                </div>
+              )}
               <span className="ios-spam-note">No spam. Only early TestFlight invitations & launch updates.</span>
             </form>
           ) : (
@@ -122,11 +141,109 @@ export function IosComingSoonContent() {
               <CheckCircle2 size={36} className="ios-success-icon" />
               <h3 className="ios-success-title">You&apos;re on the list!</h3>
               <p className="ios-success-desc">
-                We&apos;ll email <strong style={{ color: '#E3A07C' }}>{email}</strong> with a TestFlight notification as soon as early access opens.
+                We&apos;ll email <strong style={{ color: 'var(--landing-teal, #5C948C)' }}>{email}</strong> with a TestFlight notification as soon as early access opens.
               </p>
             </div>
           )}
         </div>
+
+        {/* PWA Home Screen Guide - Available Today */}
+        <section className="ios-pwa-section" aria-labelledby="pwa-install-title">
+          <div className="ios-pwa-header">
+            <span className="ios-pwa-tag">
+              <Sparkles size={12} />
+              <span>Available Today · No Waitlist Needed</span>
+            </span>
+            <h2 id="pwa-install-title" className="ios-pwa-title">Use it like an app today</h2>
+            <p className="ios-pwa-sub">
+              You don&apos;t have to wait for TestFlight. Add Thenvue directly to your iPhone or iPad home screen from Safari:
+            </p>
+          </div>
+
+          {isIosSafari === false && (
+            <div className="ios-browser-notice">
+              <Compass size={15} className="ios-notice-icon" />
+              <span>
+                <strong>Safari on iOS required:</strong> If you are viewing this on desktop or another browser (like Chrome), open <strong>thenvue.com</strong> in <strong>Safari</strong> on your iPhone or iPad to add it.
+              </span>
+            </div>
+          )}
+
+          <div className="ios-steps-grid">
+            {/* Step 1 */}
+            <div className="ios-step-card">
+              <div className="ios-step-badge">1</div>
+              <div className="ios-step-body">
+                <div className="ios-step-title-row">
+                  <Compass size={16} className="ios-step-icon" />
+                  <h4>Open in Safari</h4>
+                </div>
+                <p>
+                  Visit <span className="ios-step-domain">thenvue.com</span> in <strong>Safari</strong> on your iPhone or iPad.
+                </p>
+                <small className="ios-step-requirement">Must be Safari specifically — Chrome for iOS cannot add home screen apps.</small>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="ios-step-card">
+              <div className="ios-step-badge">2</div>
+              <div className="ios-step-body">
+                <div className="ios-step-title-row">
+                  <div className="ios-share-glyph-badge" title="iOS Share icon">
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                      <polyline points="16 6 12 2 8 6" />
+                      <line x1="12" y1="2" x2="12" y2="15" />
+                    </svg>
+                  </div>
+                  <h4>Tap the Share icon</h4>
+                </div>
+                <p>
+                  In the bottom toolbar of Safari, tap the <strong>Share</strong> icon (the square with an arrow pointing upward).
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="ios-step-card">
+              <div className="ios-step-badge">3</div>
+              <div className="ios-step-body">
+                <div className="ios-step-title-row">
+                  <PlusSquare size={16} className="ios-step-icon" />
+                  <h4>Tap &ldquo;Add to Home Screen&rdquo;</h4>
+                </div>
+                <p>
+                  Scroll down the share menu and tap <strong>Add to Home Screen</strong> (look for the square icon with a plus sign).
+                </p>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="ios-step-card">
+              <div className="ios-step-badge">4</div>
+              <div className="ios-step-body">
+                <div className="ios-step-title-row">
+                  <Check size={16} className="ios-step-icon" />
+                  <h4>Tap &ldquo;Add&rdquo;</h4>
+                </div>
+                <p>
+                  Tap <strong>Add</strong> in the top-right corner. Thenvue will appear on your home screen with its custom icon and launch full-screen.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Features Bento Grid */}
         <div className="ios-features-grid">
@@ -176,10 +293,10 @@ export function IosComingSoonContent() {
             </Link>
 
             <Link href="/android" className="ios-action-button secondary">
-              <Download size={18} />
+              <Smartphone size={18} />
               <div className="android-action-text">
-                <span className="ios-action-sub">Android Build</span>
-                <span className="ios-action-main">Download Android APK</span>
+                <span className="ios-action-sub">Android Edition</span>
+                <span className="ios-action-main">Android Waitlist (Coming Soon)</span>
               </div>
             </Link>
           </div>
@@ -195,11 +312,11 @@ export function IosComingSoonContent() {
       <style jsx>{`
         .ios-page-wrapper {
           min-height: 100vh;
-          background: #141514;
-          color: #F5F4F0;
+          background: var(--background, #1C1815);
+          color: var(--foreground, #EAE1CC);
           position: relative;
           overflow-x: hidden;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          font-family: var(--font-work-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           display: flex;
           flex-direction: column;
         }
@@ -211,7 +328,7 @@ export function IosComingSoonContent() {
           transform: translateX(-50%);
           width: 700px;
           height: 450px;
-          background: radial-gradient(circle, rgba(227, 160, 124, 0.12) 0%, rgba(201, 125, 87, 0.04) 50%, transparent 70%);
+          background: radial-gradient(circle, rgba(92, 148, 140, 0.12) 0%, rgba(92, 148, 140, 0.03) 50%, transparent 70%);
           pointer-events: none;
           z-index: 0;
         }
@@ -222,7 +339,7 @@ export function IosComingSoonContent() {
           right: 10%;
           width: 500px;
           height: 350px;
-          background: radial-gradient(circle, rgba(227, 160, 124, 0.06) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(92, 148, 140, 0.06) 0%, transparent 70%);
           pointer-events: none;
           z-index: 0;
         }
@@ -244,12 +361,12 @@ export function IosComingSoonContent() {
           align-items: center;
           gap: 8px;
           font-size: 14px;
-          color: #A1A09B;
+          color: var(--muted-foreground, #B0A594);
           text-decoration: none;
           transition: color 0.2s ease;
         }
         .ios-back-btn:hover {
-          color: #F5F4F0;
+          color: var(--foreground, #EAE1CC);
         }
 
         .ios-nav-brand {
@@ -268,21 +385,21 @@ export function IosComingSoonContent() {
           font-weight: 600;
           font-size: 17px;
           letter-spacing: -0.02em;
-          color: #F5F4F0;
+          color: var(--foreground, #EAE1CC);
         }
 
         .ios-nav-login {
           font-size: 13px;
-          color: #E3A07C;
-          border: 1px solid rgba(227, 160, 124, 0.3);
+          color: var(--landing-teal, #5C948C);
+          border: 1px solid rgba(92, 148, 140, 0.35);
           padding: 6px 14px;
           border-radius: 20px;
           text-decoration: none;
           transition: all 0.2s ease;
         }
         .ios-nav-login:hover {
-          background: rgba(227, 160, 124, 0.1);
-          border-color: rgba(227, 160, 124, 0.6);
+          background: rgba(92, 148, 140, 0.12);
+          border-color: var(--landing-teal, #5C948C);
         }
 
         .ios-main-content {
@@ -303,12 +420,12 @@ export function IosComingSoonContent() {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(234, 225, 204, 0.04);
+          border: 1px solid var(--border, rgba(234, 225, 204, 0.12));
           padding: 6px 14px;
           border-radius: 999px;
           font-size: 13px;
-          color: #D2D1CB;
+          color: var(--muted-foreground, #B0A594);
           margin-bottom: 24px;
         }
 
@@ -316,29 +433,29 @@ export function IosComingSoonContent() {
           width: 4px;
           height: 4px;
           border-radius: 50%;
-          background: #A1A09B;
+          background: var(--landing-teal, #5C948C);
+          opacity: 0.7;
         }
 
         .ios-pill-highlight {
-          color: #E3A07C;
+          color: var(--landing-teal, #5C948C);
           font-weight: 600;
         }
 
         .ios-hero-title {
-          font-size: 42px;
+          font-family: var(--font-fraunces), Georgia, serif;
+          font-size: clamp(34px, 4.8vw, 44px);
           line-height: 1.15;
-          font-weight: 700;
-          letter-spacing: -0.03em;
+          font-weight: 400;
+          letter-spacing: -0.02em;
           margin: 0 0 16px 0;
-          background: linear-gradient(180deg, #FFFFFF 0%, #D2D1CB 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
+          color: var(--foreground, #EAE1CC);
         }
 
         .ios-hero-sub {
           font-size: 17px;
           line-height: 1.55;
-          color: #A1A09B;
+          color: var(--muted-foreground, #B0A594);
           max-width: 620px;
           margin: 0 0 36px 0;
         }
@@ -346,8 +463,8 @@ export function IosComingSoonContent() {
         .ios-waitlist-card {
           width: 100%;
           max-width: 560px;
-          background: #1A1C1B;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: var(--card, #262019);
+          border: 1px solid var(--border, rgba(234, 225, 204, 0.12));
           border-radius: 20px;
           padding: 28px;
           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
@@ -363,7 +480,7 @@ export function IosComingSoonContent() {
         }
 
         .ios-form-icon {
-          color: #E3A07C;
+          color: var(--landing-teal, #5C948C);
           margin-top: 2px;
           flex-shrink: 0;
         }
@@ -371,13 +488,13 @@ export function IosComingSoonContent() {
         .ios-form-title {
           font-size: 16px;
           font-weight: 600;
-          color: #F5F4F0;
+          color: var(--foreground, #EAE1CC);
           margin: 0 0 4px 0;
         }
 
         .ios-form-desc {
           font-size: 13px;
-          color: #8E8D88;
+          color: var(--muted-foreground, #B0A594);
           margin: 0;
         }
 
@@ -389,41 +506,43 @@ export function IosComingSoonContent() {
 
         .ios-input {
           flex: 1;
-          background: #232523;
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(234, 225, 204, 0.04);
+          border: 1px solid var(--border, rgba(234, 225, 204, 0.12));
           border-radius: 12px;
           padding: 12px 16px;
-          color: #F5F4F0;
+          color: var(--foreground, #EAE1CC);
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s ease;
         }
         .ios-input:focus {
-          border-color: #E3A07C;
+          border-color: var(--landing-teal, #5C948C);
         }
 
         .ios-submit-btn {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          background: linear-gradient(135deg, #E3A07C 0%, #C97D57 100%);
-          color: #141514;
+          background: var(--landing-teal, #5C948C);
+          color: #1C1815;
           font-weight: 600;
           font-size: 14px;
           border: none;
           border-radius: 12px;
           padding: 0 20px;
           cursor: pointer;
-          transition: opacity 0.2s ease;
+          transition: opacity 0.2s ease, filter 0.2s ease;
           white-space: nowrap;
         }
         .ios-submit-btn:hover {
-          opacity: 0.92;
+          filter: brightness(1.08);
+          opacity: 0.95;
         }
 
         .ios-spam-note {
           font-size: 11px;
-          color: #71706C;
+          color: var(--muted-foreground, #B0A594);
+          opacity: 0.8;
         }
 
         .ios-success-state {
@@ -432,21 +551,21 @@ export function IosComingSoonContent() {
         }
 
         .ios-success-icon {
-          color: #4ade80;
+          color: var(--landing-teal, #5C948C);
           margin: 0 auto 12px auto;
         }
 
         .ios-success-title {
           font-size: 19px;
           font-weight: 600;
-          color: #F5F4F0;
+          color: var(--foreground, #EAE1CC);
           margin: 0 0 8px 0;
         }
 
         .ios-success-desc {
           font-size: 14px;
           line-height: 1.5;
-          color: #A1A09B;
+          color: var(--muted-foreground, #B0A594);
           margin: 0;
         }
 
@@ -461,23 +580,23 @@ export function IosComingSoonContent() {
         }
 
         .ios-feature-card {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          background: var(--card, #262019);
+          border: 1px solid var(--border, rgba(234, 225, 204, 0.08));
           border-radius: 16px;
           padding: 20px;
           transition: transform 0.2s ease, border-color 0.2s ease;
         }
         .ios-feature-card:hover {
           transform: translateY(-2px);
-          border-color: rgba(227, 160, 124, 0.25);
+          border-color: rgba(92, 148, 140, 0.35);
         }
 
         .ios-feat-icon-wrap {
           width: 38px;
           height: 38px;
           border-radius: 10px;
-          background: rgba(227, 160, 124, 0.12);
-          color: #E3A07C;
+          background: rgba(92, 148, 140, 0.12);
+          color: var(--landing-teal, #5C948C);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -487,14 +606,14 @@ export function IosComingSoonContent() {
         .ios-feat-title {
           font-size: 15px;
           font-weight: 600;
-          color: #F5F4F0;
+          color: var(--foreground, #EAE1CC);
           margin: 0 0 6px 0;
         }
 
         .ios-feat-text {
           font-size: 13px;
           line-height: 1.45;
-          color: #8E8D88;
+          color: var(--muted-foreground, #B0A594);
           margin: 0;
         }
 
@@ -507,7 +626,7 @@ export function IosComingSoonContent() {
         .ios-actions-heading {
           font-size: 18px;
           font-weight: 600;
-          color: #D2D1CB;
+          color: var(--foreground, #EAE1CC);
           margin: 0 0 16px 0;
         }
 
@@ -529,23 +648,24 @@ export function IosComingSoonContent() {
         }
 
         .ios-action-button.primary {
-          background: #232523;
-          border: 1px solid rgba(227, 160, 124, 0.35);
-          color: #F5F4F0;
+          background: var(--card, #262019);
+          border: 1px solid rgba(92, 148, 140, 0.35);
+          color: var(--foreground, #EAE1CC);
         }
         .ios-action-button.primary:hover {
-          background: #2b2e2b;
-          border-color: #E3A07C;
+          background: rgba(92, 148, 140, 0.08);
+          border-color: var(--landing-teal, #5C948C);
         }
 
         .ios-action-button.secondary {
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: #D2D1CB;
+          background: transparent;
+          border: 1px solid var(--border, rgba(234, 225, 204, 0.1));
+          color: var(--muted-foreground, #B0A594);
         }
         .ios-action-button.secondary:hover {
-          background: rgba(255, 255, 255, 0.08);
-          color: #F5F4F0;
+          background: rgba(234, 225, 204, 0.04);
+          border-color: rgba(234, 225, 204, 0.25);
+          color: var(--foreground, #EAE1CC);
         }
 
         .ios-action-text {
@@ -555,9 +675,10 @@ export function IosComingSoonContent() {
 
         .ios-action-sub {
           font-size: 11px;
-          color: #8E8D88;
+          color: var(--muted-foreground, #B0A594);
           text-transform: uppercase;
           letter-spacing: 0.04em;
+          opacity: 0.8;
         }
 
         .ios-action-main {
@@ -566,17 +687,177 @@ export function IosComingSoonContent() {
           color: inherit;
         }
 
+        .ios-pwa-section {
+          width: 100%;
+          max-width: 760px;
+          margin-bottom: 56px;
+          text-align: left;
+        }
+
+        .ios-pwa-header {
+          text-align: center;
+          margin-bottom: 28px;
+        }
+
+        .ios-pwa-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--landing-teal, #5C948C);
+          background: rgba(92, 148, 140, 0.12);
+          border: 1px solid rgba(92, 148, 140, 0.28);
+          padding: 4px 12px;
+          border-radius: 999px;
+          margin-bottom: 12px;
+        }
+
+        .ios-pwa-title {
+          font-family: var(--font-fraunces), Georgia, serif;
+          font-size: clamp(24px, 3.2vw, 32px);
+          font-weight: 400;
+          color: var(--foreground, #EAE1CC);
+          margin: 0 0 10px 0;
+          letter-spacing: -0.02em;
+        }
+
+        .ios-pwa-sub {
+          font-size: 15px;
+          line-height: 1.55;
+          color: var(--muted-foreground, #B0A594);
+          max-width: 580px;
+          margin: 0 auto;
+        }
+
+        .ios-browser-notice {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          background: rgba(92, 148, 140, 0.08);
+          border: 1px solid rgba(92, 148, 140, 0.24);
+          border-radius: 12px;
+          padding: 12px 16px;
+          margin-bottom: 24px;
+          font-size: 13px;
+          color: var(--foreground, #EAE1CC);
+          line-height: 1.45;
+        }
+
+        .ios-notice-icon {
+          color: var(--landing-teal, #5C948C);
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        .ios-steps-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+        }
+
+        .ios-step-card {
+          background: var(--card, #262019);
+          border: 1px solid var(--border, rgba(234, 225, 204, 0.1));
+          border-radius: 16px;
+          padding: 20px 22px;
+          display: flex;
+          gap: 14px;
+          transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .ios-step-card:hover {
+          border-color: rgba(92, 148, 140, 0.35);
+          background: rgba(234, 225, 204, 0.04);
+        }
+
+        .ios-step-badge {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: rgba(92, 148, 140, 0.15);
+          color: var(--landing-teal, #5C948C);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 13px;
+          flex-shrink: 0;
+        }
+
+        .ios-step-body {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          flex: 1;
+        }
+
+        .ios-step-title-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .ios-step-title-row h4 {
+          margin: 0;
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--foreground, #EAE1CC);
+        }
+
+        .ios-step-icon {
+          color: var(--landing-teal, #5C948C);
+        }
+
+        .ios-share-glyph-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--landing-teal, #5C948C);
+        }
+
+        .ios-step-body p {
+          margin: 0;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--muted-foreground, #B0A594);
+        }
+
+        .ios-step-domain {
+          background: rgba(234, 225, 204, 0.06);
+          padding: 2px 6px;
+          border-radius: 4px;
+          color: var(--landing-teal, #5C948C);
+          font-family: monospace;
+          font-size: 12px;
+        }
+
+        .ios-step-requirement {
+          font-size: 11px;
+          color: var(--muted-foreground, #B0A594);
+          opacity: 0.85;
+          font-style: italic;
+          display: block;
+          margin-top: 2px;
+        }
+
         .ios-footer {
           text-align: center;
           padding: 24px;
           font-size: 12px;
-          color: #71706C;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          color: var(--muted-foreground, #B0A594);
+          opacity: 0.8;
+          border-top: 1px solid var(--border, rgba(234, 225, 204, 0.08));
         }
 
         @media (max-width: 640px) {
           .ios-hero-title {
             font-size: 32px;
+          }
+          .ios-steps-grid {
+            grid-template-columns: 1fr;
           }
           .ios-features-grid {
             grid-template-columns: 1fr;

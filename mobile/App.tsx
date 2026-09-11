@@ -57,10 +57,42 @@ import { PerspectiveComposerModal } from './src/components/PerspectiveComposerMo
 import { NotificationModal } from './src/components/NotificationModal'
 import { RediscoverModal } from './src/components/RediscoverModal'
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('App ErrorBoundary caught:', error, errorInfo)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#1C1E1D', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ color: '#F05A28', fontSize: 20, fontWeight: '700', marginBottom: 12 }}>Something went wrong</Text>
+          <Text style={{ color: '#E5E7EB', fontSize: 14, textAlign: 'center', marginBottom: 20 }}>{this.state.error?.message || 'An unexpected error occurred.'}</Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#2B302D', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 }}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Reload App</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
-      <MainContent />
+      <ErrorBoundary>
+        <MainContent />
+      </ErrorBoundary>
     </SafeAreaProvider>
   )
 }
@@ -98,6 +130,12 @@ function MainContent() {
   }
 
   const [currentTab, setCurrentTab] = useState<'home' | 'timeline' | 'memories' | 'ask' | 'people' | 'places' | 'you'>('home')
+  const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({ home: true })
+
+  const handleSelectTab = useCallback((tab: 'home' | 'timeline' | 'memories' | 'ask' | 'people' | 'places' | 'you') => {
+    setVisitedTabs((prev) => (prev[tab] ? prev : { ...prev, [tab]: true }))
+    setCurrentTab(tab)
+  }, [])
   const [memories, setMemories] = useState<Memory[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState<boolean>(true)
@@ -542,7 +580,7 @@ function MainContent() {
           colors={colors}
           dark={dark}
           onToggleTheme={() => setDark(!dark)}
-          onOpenSearch={() => setCurrentTab('timeline')}
+          onOpenSearch={() => handleSelectTab('timeline')}
           onOpenCapture={() => {
             setCaptureMode('text')
             setCaptureVisible(true)
@@ -552,9 +590,9 @@ function MainContent() {
           unreadNotificationsCount={unreadNotificationsCount}
         />
 
-        {/* Current View */}
+        {/* Current View: Lazy Persistent Tabs */}
         <View style={styles.viewContainer}>
-          {currentTab === 'home' && (
+          <View style={[styles.tabContent, { display: currentTab === 'home' ? 'flex' : 'none' }]}>
             <HomeScreen
               memories={memories}
               colors={colors}
@@ -572,84 +610,96 @@ function MainContent() {
                 setCaptureMode('voice')
                 setCaptureVisible(true)
               }}
-              onNavigateTimeline={() => setCurrentTab('timeline')}
-              onNavigateMemories={() => setCurrentTab('memories')}
-              onNavigateAsk={() => setCurrentTab('ask')}
+              onNavigateTimeline={() => handleSelectTab('timeline')}
+              onNavigateMemories={() => handleSelectTab('memories')}
+              onNavigateAsk={() => handleSelectTab('ask')}
               onOpenRediscover={() => setRediscoverVisible(true)}
               onAddPhoto={handleInitiateAddPhoto}
             />
+          </View>
+
+          {visitedTabs.memories && (
+            <View style={[styles.tabContent, { display: currentTab === 'memories' ? 'flex' : 'none' }]}>
+              <MemoriesScreen
+                memories={memories}
+                colors={colors}
+                initialQuery={memorySearchQuery}
+                onBack={() => {
+                  setMemorySearchQuery('')
+                  handleSelectTab('home')
+                }}
+                onSelectMemory={handleSelectMemoryDetail}
+                onEndReached={handleLoadMore}
+                isLoadingMore={isLoadingMore}
+              />
+            </View>
           )}
 
-          {currentTab === 'memories' && (
-            <MemoriesScreen
-              memories={memories}
-              colors={colors}
-              initialQuery={memorySearchQuery}
-              onBack={() => {
-                setMemorySearchQuery('')
-                setCurrentTab('home')
-              }}
-              onSelectMemory={handleSelectMemoryDetail}
-              onEndReached={handleLoadMore}
-              isLoadingMore={isLoadingMore}
-            />
+          {visitedTabs.timeline && (
+            <View style={[styles.tabContent, { display: currentTab === 'timeline' ? 'flex' : 'none' }]}>
+              <TimelineScreen
+                memories={memories}
+                colors={colors}
+                onSelectMemory={handleSelectMemoryDetail}
+                onEndReached={handleLoadMore}
+                isLoadingMore={isLoadingMore}
+              />
+            </View>
           )}
 
-          {currentTab === 'timeline' && (
-            <TimelineScreen
-              memories={memories}
-              colors={colors}
-              onSelectMemory={handleSelectMemoryDetail}
-              onEndReached={handleLoadMore}
-              isLoadingMore={isLoadingMore}
-            />
+          {visitedTabs.ask && (
+            <View style={[styles.tabContent, { display: currentTab === 'ask' ? 'flex' : 'none' }]}>
+              <AskScreen
+                memories={memories}
+                colors={colors}
+                onSelectMemory={handleSelectMemoryDetail}
+              />
+            </View>
           )}
 
-          {currentTab === 'ask' && (
-            <AskScreen
-              memories={memories}
-              colors={colors}
-              onSelectMemory={handleSelectMemoryDetail}
-            />
+          {visitedTabs.people && (
+            <View style={[styles.tabContent, { display: currentTab === 'people' ? 'flex' : 'none' }]}>
+              <PeopleScreen
+                memories={memories}
+                colors={colors}
+                onSelectPerson={(personName) => {
+                  setMemorySearchQuery(personName)
+                  handleSelectTab('memories')
+                }}
+              />
+            </View>
           )}
 
-          {currentTab === 'people' && (
-            <PeopleScreen
-              memories={memories}
-              colors={colors}
-              onSelectPerson={(personName) => {
-                setMemorySearchQuery(personName)
-                setCurrentTab('memories')
-              }}
-            />
+          {visitedTabs.places && (
+            <View style={[styles.tabContent, { display: currentTab === 'places' ? 'flex' : 'none' }]}>
+              <PlacesScreen
+                memories={memories}
+                colors={colors}
+                onSelectPlace={(placeName) => {
+                  setMemorySearchQuery(placeName)
+                  handleSelectTab('memories')
+                }}
+              />
+            </View>
           )}
 
-          {currentTab === 'places' && (
-            <PlacesScreen
-              memories={memories}
-              colors={colors}
-              onSelectPlace={(placeName) => {
-                setMemorySearchQuery(placeName)
-                setCurrentTab('memories')
-              }}
-            />
-          )}
-
-          {currentTab === 'you' && (
-            <YouScreen
-              memories={memories}
-              colors={colors}
-              dark={dark}
-              userEmail={user?.email || 'User'}
-              currentDisplayName={customDisplayName || user?.user_metadata?.display_name || user?.email?.split('@')[0]}
-              onToggleTheme={handleToggleTheme}
-              onSignOut={handleSignOut}
-              onNavigatePeople={() => setCurrentTab('people')}
-              onNavigatePlaces={() => setCurrentTab('places')}
-              onNavigateAsk={() => setCurrentTab('ask')}
-              onDisplayNameUpdated={(newName) => setCustomDisplayName(newName)}
-              onReplayTutorial={handleResetOnboarding}
-            />
+          {visitedTabs.you && (
+            <View style={[styles.tabContent, { display: currentTab === 'you' ? 'flex' : 'none' }]}>
+              <YouScreen
+                memories={memories}
+                colors={colors}
+                dark={dark}
+                userEmail={user?.email || 'User'}
+                currentDisplayName={customDisplayName || user?.user_metadata?.display_name || user?.email?.split('@')[0]}
+                onToggleTheme={handleToggleTheme}
+                onSignOut={handleSignOut}
+                onNavigatePeople={() => handleSelectTab('people')}
+                onNavigatePlaces={() => handleSelectTab('places')}
+                onNavigateAsk={() => handleSelectTab('ask')}
+                onDisplayNameUpdated={(newName) => setCustomDisplayName(newName)}
+                onReplayTutorial={handleResetOnboarding}
+              />
+            </View>
           )}
         </View>
 
@@ -668,7 +718,7 @@ function MainContent() {
           {/* Home Tab */}
           <TouchableOpacity
             style={styles.tabItem}
-            onPress={() => setCurrentTab('home')}
+            onPress={() => handleSelectTab('home')}
             activeOpacity={0.7}
             accessibilityLabel="Home"
           >
@@ -679,7 +729,7 @@ function MainContent() {
           {/* Timeline Tab */}
           <TouchableOpacity
             style={styles.tabItem}
-            onPress={() => setCurrentTab('timeline')}
+            onPress={() => handleSelectTab('timeline')}
             activeOpacity={0.7}
             accessibilityLabel="Timeline"
           >
@@ -705,7 +755,7 @@ function MainContent() {
           {/* Ask Tab */}
           <TouchableOpacity
             style={styles.tabItem}
-            onPress={() => setCurrentTab('ask')}
+            onPress={() => handleSelectTab('ask')}
             activeOpacity={0.7}
             accessibilityLabel="Ask"
           >
@@ -716,7 +766,7 @@ function MainContent() {
           {/* You Tab */}
           <TouchableOpacity
             style={styles.tabItem}
-            onPress={() => setCurrentTab('you')}
+            onPress={() => handleSelectTab('you')}
             activeOpacity={0.7}
             accessibilityLabel="You"
           >
@@ -725,37 +775,40 @@ function MainContent() {
           </TouchableOpacity>
         </View>
 
-        {/* Capture Modal */}
-        <CaptureModal
-          visible={captureVisible}
-          initialMode={captureMode}
-          colors={colors}
-          onClose={() => setCaptureVisible(false)}
-          onSaveText={handleSaveText}
-          onSaveVoice={handleSaveVoice}
-        />
+        {/* Capture Modal - Lazy Mounted */}
+        {captureVisible && (
+          <CaptureModal
+            visible={captureVisible}
+            initialMode={captureMode}
+            colors={colors}
+            onClose={() => setCaptureVisible(false)}
+            onSaveText={handleSaveText}
+            onSaveVoice={handleSaveVoice}
+          />
+        )}
 
-        {/* Memory Detail Modal */}
-        <MemoryDetailModal
-          memory={selectedMemory}
-          allMemories={memories}
-          colors={colors}
-          visible={Boolean(selectedMemory)}
-          onClose={() => setSelectedMemory(null)}
-          onDelete={handleDeleteMemory}
-          onSelectConnected={handleSelectMemoryDetail}
-          onInvitePeople={handleInvitePeople}
-          onAddPerspective={handleAddPerspective}
-          onDeletePerspective={handleDeletePerspective}
-          onUpdateMemory={handleUpdateMemory}
-          onAddPhoto={handleInitiateAddPhoto}
-          onSearchTag={(tag) => {
-            setSelectedMemory(null)
-            setMemorySearchQuery(tag)
-            setCurrentTab('memories')
-          }}
-        />
-
+        {/* Memory Detail Modal - Lazy Mounted */}
+        {Boolean(selectedMemory) && (
+          <MemoryDetailModal
+            memory={selectedMemory}
+            allMemories={memories}
+            colors={colors}
+            visible={Boolean(selectedMemory)}
+            onClose={() => setSelectedMemory(null)}
+            onDelete={handleDeleteMemory}
+            onSelectConnected={handleSelectMemoryDetail}
+            onInvitePeople={handleInvitePeople}
+            onAddPerspective={handleAddPerspective}
+            onDeletePerspective={handleDeletePerspective}
+            onUpdateMemory={handleUpdateMemory}
+            onAddPhoto={handleInitiateAddPhoto}
+            onSearchTag={(tag) => {
+              setSelectedMemory(null)
+              setMemorySearchQuery(tag)
+              handleSelectTab('memories')
+            }}
+          />
+        )}
 
         {/* Invite People Modal */}
         {inviteMemory && (
@@ -794,26 +847,30 @@ function MainContent() {
           />
         )}
 
-        {/* Notifications Modal */}
-        <NotificationModal
-          visible={notificationModalVisible}
-          colors={colors}
-          onClose={() => setNotificationModalVisible(false)}
-          onOpenPerspectiveComposer={handleOpenPerspectiveComposer}
-          onOpenMemory={handleOpenMemoryFromNotification}
-          onUnreadCountChange={(count) => setUnreadNotificationsCount(count)}
-        />
+        {/* Notifications Modal - Lazy Mounted */}
+        {notificationModalVisible && (
+          <NotificationModal
+            visible={notificationModalVisible}
+            colors={colors}
+            onClose={() => setNotificationModalVisible(false)}
+            onOpenPerspectiveComposer={handleOpenPerspectiveComposer}
+            onOpenMemory={handleOpenMemoryFromNotification}
+            onUnreadCountChange={(count) => setUnreadNotificationsCount(count)}
+          />
+        )}
 
-        {/* Photo Action Sheet Modal */}
-        <PhotoActionSheetModal
-          visible={photoActionSheetVisible}
-          colors={colors}
-          onClose={() => {
-            setPhotoActionSheetVisible(false)
-            setTargetMemoryForPhoto(null)
-          }}
-          onPhotoSelected={handlePhotoSelected}
-        />
+        {/* Photo Action Sheet Modal - Lazy Mounted */}
+        {photoActionSheetVisible && (
+          <PhotoActionSheetModal
+            visible={photoActionSheetVisible}
+            colors={colors}
+            onClose={() => {
+              setPhotoActionSheetVisible(false)
+              setTargetMemoryForPhoto(null)
+            }}
+            onPhotoSelected={handlePhotoSelected}
+          />
+        )}
 
         {/* Rediscover Past Photos Modal */}
         <RediscoverModal
@@ -844,6 +901,11 @@ const styles = StyleSheet.create({
   },
   viewContainer: {
     flex: 1,
+  },
+  tabContent: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   loadingScreen: {
     flex: 1,

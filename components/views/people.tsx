@@ -1,4 +1,4 @@
-import { ChevronRight, Users } from 'lucide-react'
+import { ChevronRight, Users, PenLine } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { PageIntro } from '@/components/shared/page-intro'
 import { fmt } from '@/lib/format'
@@ -44,10 +44,13 @@ export function People({
             <Users size={22} />
           </div>
           <h3>No people mentioned yet</h3>
-          <p>The people in your memories will appear here automatically when you mention their names.</p>
+          <p>
+            When you tag someone with @name or write about family and friends in your thoughts, photos, or voice notes, Thenvue automatically gathers and organizes their moments here.
+          </p>
           {onCapture && (
-            <button type="button" className="voice-action-btn" onClick={onCapture}>
-              Capture a memory
+            <button type="button" className="voice-action-btn" style={{ marginTop: 8 }} onClick={onCapture}>
+              <PenLine size={15} />
+              <span>Write a memory mentioning someone</span>
             </button>
           )}
         </div>

@@ -15,7 +15,7 @@ import type { ThemeColors } from '../theme/colors'
 import { MemoryRow } from '../components/MemoryRow'
 import { searchSemanticMemoriesApi } from '../lib/ai'
 
-export function TimelineScreen({
+export const TimelineScreen = React.memo(function TimelineScreen({
   memories = [],
   colors,
   onSelectMemory,
@@ -94,7 +94,7 @@ export function TimelineScreen({
     })
 
     return filteredByTag.sort((a, b) => {
-      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+      const dateDiff = (b.date || '').localeCompare(a.date || '')
       if (dateDiff !== 0) return dateDiff
       return (b.time || '').localeCompare(a.time || '')
     })
@@ -221,7 +221,7 @@ export function TimelineScreen({
       showsVerticalScrollIndicator={false}
     />
   )
-}
+})
 
 const styles = StyleSheet.create({
   container: {

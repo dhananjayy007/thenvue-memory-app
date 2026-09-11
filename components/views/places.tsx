@@ -1,4 +1,4 @@
-import { ChevronRight, MapPin } from 'lucide-react'
+import { ChevronRight, MapPin, PenLine } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { PageIntro } from '@/components/shared/page-intro'
 
@@ -47,10 +47,13 @@ export function Places({
               <MapPin size={22} />
             </div>
             <h3>No places remembered yet</h3>
-            <p>The places connected to your memories will appear here as you log locations.</p>
+            <p>
+              The locations connected to your memories will appear here automatically as you write about places, log GPS coordinates, or import photos with geotags.
+            </p>
             {onCapture && (
-              <button type="button" className="voice-action-btn" onClick={onCapture}>
-                Capture a memory
+              <button type="button" className="voice-action-btn" style={{ marginTop: 8 }} onClick={onCapture}>
+                <PenLine size={15} />
+                <span>Write a memory with a place</span>
               </button>
             )}
           </div>

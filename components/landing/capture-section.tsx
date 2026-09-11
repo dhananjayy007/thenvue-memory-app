@@ -1,59 +1,85 @@
 'use client'
 
-import { PenLine, Camera, Mic, MapPin, Volume2 } from 'lucide-react'
+import { PenLine, Camera, Mic, MapPin, Sparkles } from 'lucide-react'
 
 export function LandingCaptureSection() {
   return (
     <section className="landing-capture-section">
       <div className="landing-capture-header">
-        <span className="landing-quiet-eyebrow">Effortless Input</span>
-        <h2 className="landing-capture-headline">Capture first. Organize later.</h2>
+        <span className="landing-quiet-eyebrow">Effortless Journaling</span>
+        <h2 className="landing-capture-headline">Writing comes first. Add what you need.</h2>
         <p className="landing-capture-subhead">
-          A thought. A photo. A spoken reflection. Save it now, and let Thenvue remember where it fits into your life.
+          Start with a sentence or a whole page. Thenvue organizes your memories into a searchable story — with photos and voice notes whenever you want them.
         </p>
       </div>
 
-      {/* Visual, Tactile Capture Examples */}
-      <div className="landing-capture-visual-row">
-        {/* 1. Write */}
-        <div className="capture-visual-card write-card">
-          <div className="capture-visual-badge">
-            <PenLine size={13} />
-            <span>Write</span>
+      {/* Visual Modalities in Order of Priority: Write (Primary), Photo (Optional), Voice */}
+      <div className="landing-capture-hierarchy-grid">
+        {/* 1. WRITE (Primary Emphasis Card) */}
+        <div className="capture-visual-card write-card featured-write-card">
+          <div className="capture-card-topbar">
+            <div className="capture-visual-badge primary-badge">
+              <PenLine size={13} />
+              <span>1. Write down what mattered</span>
+            </div>
+            <span className="capture-role-pill">Core experience</span>
           </div>
+
           <div className="capture-inner-preview">
-            <span className="capture-preview-date">Today · 9:30 PM</span>
+            <div className="capture-preview-meta-row">
+              <span className="capture-preview-date">October 14 · 9:30 PM</span>
+              <span className="capture-preview-location">
+                <MapPin size={11} /> Lisbon, Portugal
+              </span>
+            </div>
+
             <p className="capture-text-sample">
-              &ldquo;The night air is finally cooling down. Reminded myself why we started this.&rdquo;
+              &ldquo;The old apartment smelled like cedar and summer rain tonight. Packed the bookshelves first. Found the postcard Alex sent from Lisbon three years ago with &lsquo;don&apos;t forget where we started&rsquo; written on the back.&rdquo;
             </p>
-            <div className="capture-bottom-tag">
-              <MapPin size={10} /> Balcony
+
+            <div className="capture-ai-index-pill">
+              <Sparkles size={11} />
+              <span>Indexed by emotion, people, and place automatically</span>
             </div>
           </div>
         </div>
 
-        {/* 2. Photo */}
+        {/* 2. PHOTO (Optional Supporting Companion) */}
         <div className="capture-visual-card photo-card">
-          <div className="capture-visual-badge">
-            <Camera size={13} />
-            <span>Photo</span>
+          <div className="capture-card-topbar">
+            <div className="capture-visual-badge">
+              <Camera size={13} />
+              <span>2. Add a photo (optional)</span>
+            </div>
+            <span className="capture-role-pill subtle-pill">Supporting</span>
           </div>
+
           <div className="capture-inner-preview photo-preview">
             <div className="capture-photo-frame">
-              <div className="photo-placeholder-art">
-                <span className="photo-art-text">Morning light in the studio</span>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=700&q=80"
+                alt="Morning light across a wooden table with coffee and notebook"
+                className="capture-real-photo"
+                loading="lazy"
+              />
             </div>
-            <span className="capture-photo-caption">8:15 AM · Filter coffee & morning notes</span>
+            <p className="capture-supporting-desc">
+              Attach a photo when an image holds the feeling of a place or a quiet moment worth keeping.
+            </p>
           </div>
         </div>
 
-        {/* 3. Voice */}
+        {/* 3. VOICE (Spoken Reflection) */}
         <div className="capture-visual-card voice-card">
-          <div className="capture-visual-badge">
-            <Mic size={13} />
-            <span>Voice</span>
+          <div className="capture-card-topbar">
+            <div className="capture-visual-badge">
+              <Mic size={13} />
+              <span>3. Speak a thought</span>
+            </div>
+            <span className="capture-role-pill subtle-pill">On the go</span>
           </div>
+
           <div className="capture-inner-preview voice-preview">
             <div className="voice-audio-indicator">
               <div className="voice-waveform">
@@ -68,14 +94,17 @@ export function LandingCaptureSection() {
               <span className="voice-duration">0:42</span>
             </div>
             <p className="voice-transcript-sample">
-              &ldquo;Idea for the new design: keep it quiet, like flipping through physical paper...&rdquo;
+              &ldquo;Voice note while walking: the leaves on the lake road are turning gold. Reminded myself why we came here...&rdquo;
+            </p>
+            <p className="capture-supporting-desc">
+              Speak freely while your hands are full. Thenvue transcribes and indexes your spoken words.
             </p>
           </div>
         </div>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 28 }}>
-        <a href="/voice-journal" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+      <div className="capture-footer-link-wrap">
+        <a href="/voice-journal" className="trust-inline-link">
           Explore the voice journal workflow →
         </a>
       </div>

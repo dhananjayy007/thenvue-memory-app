@@ -21,259 +21,206 @@ interface DemoQuery {
     snippet: string
     place: string
     people: string[]
-    tag: string
+    photoUrl: string
   }[]
 }
 
 const DEMO_PRESETS: DemoQuery[] = [
   {
-    id: 'summer-friends',
-    label: 'Friends last summer',
-    query: 'What did I do with my friends last summer?',
+    id: 'lake-house',
+    label: 'Weekends at the lake house',
+    query: 'What did we do at the lake house last summer?',
     answer:
-      'Last summer, you spent weekends at Blue Tokai sketching ideas with Maya, caught evening walks around Powai Lake, and hosted a late-night graduation reunion before the team moved to new cities.',
+      'Last July, you spent three days at the lake house with Alex and Jordan. You made coffee on the dock at sunrise, swam in the afternoon, and read on the screened porch while the rain came through.',
     context: {
-      people: ['Maya', 'Liam', 'Elena'],
-      places: ['Powai Lake', 'Blue Tokai', 'Hostel Rooftop'],
-      timeframe: 'June – August 2026',
+      people: ['Alex', 'Jordan'],
+      places: ['The Lake House'],
+      timeframe: 'July 2025',
     },
     memories: [
       {
         id: 'mem-1',
-        date: 'August 24, 2026 · 8:15 PM',
-        title: 'Lakefront Dinner & Architecture Talk',
-        snippet: 'Met Maya at the bistro near the lake. We talked about building our studio, new project roadmaps, and watching the city lights.',
-        place: 'Powai, Mumbai',
-        people: ['Maya'],
-        tag: 'Projects',
+        date: 'July 19, 2025 · 6:30 PM',
+        title: 'Sunset over the dock',
+        snippet: 'Sat with Alex on the warm cedar boards with our feet in the water. We talked about how fast the year had gone.',
+        place: 'The Lake House',
+        people: ['Alex'],
+        photoUrl: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=600&q=80',
       },
       {
         id: 'mem-2',
-        date: 'July 18, 2026 · 6:45 PM',
-        title: 'Sunset Walk Around the Lake',
-        snippet: 'Joined Liam and Elena for a breezy evening walk. Discussed travel plans and caught the golden sunset over the hills.',
-        place: 'Powai Lake',
-        people: ['Liam', 'Elena'],
-        tag: 'Friends',
-      },
-      {
-        id: 'mem-3',
-        date: 'June 14, 2026 · 11:30 PM',
-        title: 'Late Night Rooftop Farewell',
-        snippet: 'Final hostel rooftop dinner before packing bags. Playing acoustic guitar and reminiscing on four years together.',
-        place: 'Campus Rooftop',
-        people: ['Maya', 'Liam'],
-        tag: 'College',
+        date: 'July 20, 2025 · 8:15 AM',
+        title: 'Morning coffee & pine needles',
+        snippet: 'Jordan brewed a kettle of pour-over. Total silence except the loons on the far side of the water.',
+        place: 'Screened Porch',
+        people: ['Jordan'],
+        photoUrl: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80',
       },
     ],
   },
   {
-    id: 'coffee-maya',
-    label: 'Coffee spots with Maya',
-    query: 'Where were the coffee spots I loved with Maya?',
+    id: 'lisbon-walks',
+    label: 'Coffee & bookshops in Lisbon',
+    query: 'Where were the quiet spots I loved in Lisbon?',
     answer:
-      'You frequently met Maya at Blue Tokai for pour-overs and design sketching on Saturday mornings, and stopped by the quiet corner roastery in Bandra on rainy afternoons.',
+      'You frequented the corner bookshop in Chiado for quiet morning reading with Maya, and spent rainy afternoons at the neighborhood roastery writing in your notebook.',
     context: {
       people: ['Maya'],
-      places: ['Blue Tokai', 'Subko Bandra'],
-      timeframe: 'March – August 2026',
-    },
-    memories: [
-      {
-        id: 'mem-4',
-        date: 'August 15, 2026 · 11:30 AM',
-        title: 'Saturday Pour-overs & Sketching',
-        snippet: 'Spent two quiet hours at the corner table tasting Ethiopian single-origin while mapping out app physics.',
-        place: 'Blue Tokai Coffee',
-        people: ['Maya'],
-        tag: 'Coffee',
-      },
-      {
-        id: 'mem-5',
-        date: 'April 02, 2026 · 4:20 PM',
-        title: 'Rainy Afternoon Espresso',
-        snippet: '躲雨 in the old Portuguese quarter with warm sourdough toast and double shot espressos with Maya.',
-        place: 'Subko Bandra',
-        people: ['Maya'],
-        tag: 'Life',
-      },
-    ],
-  },
-  {
-    id: 'kyoto-trip',
-    label: 'Kyoto autumn trip',
-    query: 'What do I remember about our trip to Kyoto?',
-    answer:
-      'In October 2025, you explored early morning tea houses in Gion with Liam, caught rainy temple moss gardens, and listened to vinyl records at a tiny jazz bar.',
-    context: {
-      people: ['Liam'],
-      places: ['Gion, Kyoto', 'Arashiyama', 'Jazz Kissa D-Bop'],
+      places: ['Lisbon', 'Corner Bookshop'],
       timeframe: 'October 2025',
     },
     memories: [
       {
-        id: 'mem-6',
-        date: 'October 12, 2025 · 8:40 AM',
-        title: 'Early Morning Cedar Tea House',
-        snippet: 'Walked the stone alleys right after sunrise rain. The smell of cedar and incense was everywhere.',
-        place: 'Gion, Kyoto',
-        people: ['Liam'],
-        tag: 'Travel',
+        id: 'mem-3',
+        date: 'October 14, 2025 · 4:15 PM',
+        title: 'Rainy afternoon at the corner bookshop',
+        snippet: 'Found a quiet table under the archway. Maya and I read for two hours while the cobblestones outside glistened.',
+        place: 'Corner Bookshop, Lisbon',
+        people: ['Maya'],
+        photoUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=600&q=80',
       },
       {
-        id: 'mem-7',
-        date: 'October 14, 2025 · 9:15 PM',
-        title: 'Late Night Jazz Kissa',
-        snippet: 'Found an unmarked wooden door on the second floor. Bill Evans playing on vintage McIntosh tube amps.',
-        place: 'Jazz Kissa D-Bop',
-        people: ['Liam'],
-        tag: 'Music',
+        id: 'mem-4',
+        date: 'October 18, 2025 · 9:30 AM',
+        title: 'Morning espresso before the museum',
+        snippet: 'Warm pastries and strong coffee by the sunny balcony. Discussed taking a road trip north along the coast.',
+        place: 'Alfama Roastery',
+        people: ['Maya'],
+        photoUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=600&q=80',
+      },
+    ],
+  },
+  {
+    id: 'old-apartment',
+    label: 'Moving out of the college town',
+    query: 'When did we pack up the old apartment?',
+    answer:
+      'You packed up the old apartment with Sam on a warm afternoon in late May. You listened to records on the floor after the furniture was moved out.',
+    context: {
+      people: ['Sam'],
+      places: ['The Old Apartment', 'College Town'],
+      timeframe: 'May 2024',
+    },
+    memories: [
+      {
+        id: 'mem-5',
+        date: 'May 28, 2024 · 3:45 PM',
+        title: 'Empty living room records',
+        snippet: 'Everything in boxes. Sam plugged the record player into the last wall outlet and we danced on the bare floorboards.',
+        place: 'The Old Apartment',
+        people: ['Sam'],
+        photoUrl: 'https://images.unsplash.com/photo-1513581166391-887a96ddeafd?auto=format&fit=crop&w=600&q=80',
       },
     ],
   },
 ]
 
 export function LandingAhaMoment() {
-  const [selectedKey, setSelectedKey] = useState<string>('summer-friends')
-  const [isSearching, setIsSearching] = useState(false)
-  const [customQuery, setCustomQuery] = useState('')
-
-  const activePreset = DEMO_PRESETS.find((p) => p.id === selectedKey) || DEMO_PRESETS[0]
-
-  const handleSelectPreset = (key: string) => {
-    if (key === selectedKey && !customQuery) return
-    setIsSearching(true)
-    setSelectedKey(key)
-    setCustomQuery('')
-    setTimeout(() => {
-      setIsSearching(false)
-    }, 320)
-  }
+  const [selectedPreset, setSelectedPreset] = useState<DemoQuery>(DEMO_PRESETS[0])
 
   return (
-    <section id="how-it-works" className="landing-aha-section">
+    <section id="ask-your-life" className="landing-aha-section">
       <div className="landing-aha-header">
-        <span className="landing-quiet-eyebrow">Ask Your Life</span>
-        <h2 className="landing-aha-headline">
-          Instead of searching through your life, ask about it.
-        </h2>
+        <span className="landing-quiet-eyebrow">
+          Ask Your Life
+          {/* Near-zero rose accent: single tiny refined dot on the entire page */}
+          <span className="single-rose-accent-dot" aria-hidden="true" />
+        </span>
+        <h2 className="landing-aha-headline">Ask your past anything.</h2>
         <p className="landing-aha-subhead">
-          Ask questions in your own words. Thenvue retrieves your saved memories to build a grounded answer.
+          Search your life by feeling, place, or conversation. Thenvue understands the nuance of how you remember.
         </p>
       </div>
 
-      {/* Main Interactive Demo Unit */}
-      <div className="landing-aha-demo-card">
-        {/* Search Bar */}
-        <div className="landing-aha-search-bar">
-          <div className="aha-search-input-wrap">
-            <CustomBrainIcon size={18} className="aha-brain-icon" />
-            <input
-              type="text"
-              className="aha-search-input"
-              value={customQuery || activePreset.query}
-              onChange={(e) => setCustomQuery(e.target.value)}
-              placeholder="Ask your life anything..."
-            />
+      {/* Preset Filter Chips */}
+      <div className="landing-aha-chips-row">
+        {DEMO_PRESETS.map((preset) => {
+          const isActive = preset.id === selectedPreset.id
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => setSelectedPreset(preset)}
+              className={`aha-chip-button ${isActive ? 'active' : ''}`}
+            >
+              <span>{preset.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Interactive Showcase Frame */}
+      <div className="landing-aha-demo-stage">
+        {/* Search Bar Visual */}
+        <div className="aha-search-bar-mock">
+          <div className="search-bar-left">
+            <Search size={16} className="search-icon" />
+            <span className="search-text-value">&ldquo;{selectedPreset.query}&rdquo;</span>
           </div>
-          <button
-            type="button"
-            className="aha-search-action-btn"
-            onClick={() => handleSelectPreset(selectedKey)}
-            aria-label="Search past"
-          >
-            <Search size={15} />
-          </button>
+          <span className="search-status-pill">
+            <Sparkles size={12} />
+            <span>Semantic match</span>
+          </span>
         </div>
 
-        {/* Preset Query Chips */}
-        <div className="landing-aha-chips-row">
-          <span className="aha-chips-label">Try asking:</span>
-          <div className="aha-chips-list">
-            {DEMO_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                className={`aha-chip-button ${selectedKey === preset.id && !customQuery ? 'active' : ''}`}
-                onClick={() => handleSelectPreset(preset.id)}
-              >
-                <span>{preset.label}</span>
-              </button>
+        {/* AI Grounded Synthesis Box */}
+        <div className="aha-ai-answer-card">
+          <div className="ai-answer-header">
+            <CustomBrainIcon size={16} className="ai-brain-icon" />
+            <span className="ai-answer-label">Thenvue AI Reflection</span>
+          </div>
+
+          <p className="ai-answer-body">&ldquo;{selectedPreset.answer}&rdquo;</p>
+
+          {/* Context pill tags */}
+          <div className="ai-context-pills">
+            <span className="context-pill">
+              <Calendar size={11} />
+              <span>{selectedPreset.context.timeframe}</span>
+            </span>
+            <span className="context-pill">
+              <Users size={11} />
+              <span>{selectedPreset.context.people.join(', ')}</span>
+            </span>
+            <span className="context-pill">
+              <MapPin size={11} />
+              <span>{selectedPreset.context.places.join(', ')}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Grounding Memories with Real Photography */}
+        <div className="aha-grounding-section">
+          <span className="grounding-eyebrow">Matched Memories</span>
+
+          <div className="aha-memories-grid">
+            {selectedPreset.memories.map((mem) => (
+              <div key={mem.id} className="aha-memory-card">
+                <div className="aha-memory-photo-frame">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={mem.photoUrl}
+                    alt={mem.title}
+                    className="aha-memory-photo"
+                    loading="lazy"
+                  />
+                </div>
+
+                <div className="aha-memory-content">
+                  <div className="aha-memory-top">
+                    <span className="aha-memory-date">{mem.date}</span>
+                    <span className="aha-memory-place">
+                      <MapPin size={11} /> {mem.place}
+                    </span>
+                  </div>
+
+                  <h4 className="aha-memory-title">{mem.title}</h4>
+                  <p className="aha-memory-snippet">&ldquo;{mem.snippet}&rdquo;</p>
+                </div>
+              </div>
             ))}
           </div>
         </div>
-
-        {/* Searching Transition Indicator */}
-        {isSearching ? (
-          <div className="aha-searching-state">
-            <CustomBrainIcon size={20} className="aha-spinner-icon" />
-            <span>Searching your private timeline...</span>
-          </div>
-        ) : (
-          <div className="aha-results-container">
-            {/* Context Breadcrumbs / Connected Entity Ribbon */}
-            <div className="aha-connected-ribbon">
-              <div className="connected-ribbon-item">
-                <Users size={12} className="ribbon-icon" />
-                <span className="ribbon-label">People:</span>
-                <span className="ribbon-val">{activePreset.context.people.join(', ')}</span>
-              </div>
-              <div className="connected-ribbon-divider" />
-              <div className="connected-ribbon-item">
-                <MapPin size={12} className="ribbon-icon" />
-                <span className="ribbon-label">Places:</span>
-                <span className="ribbon-val">{activePreset.context.places.join(' · ')}</span>
-              </div>
-              <div className="connected-ribbon-divider" />
-              <div className="connected-ribbon-item">
-                <Calendar size={12} className="ribbon-icon" />
-                <span className="ribbon-label">Timeline:</span>
-                <span className="ribbon-val">{activePreset.context.timeframe}</span>
-              </div>
-            </div>
-
-            {/* AI Grounded Synthesis Box */}
-            <div className="aha-answer-box">
-              <div className="aha-answer-header">
-                <Sparkles size={14} className="aha-sparkle-tint" />
-                <span>Grounded recollection from {activePreset.memories.length} memories</span>
-              </div>
-              <p className="aha-answer-text">&ldquo;{activePreset.answer}&rdquo;</p>
-            </div>
-
-            {/* Retrieved Memory Timeline Cards */}
-            <div className="aha-memories-grid">
-              {activePreset.memories.map((mem) => (
-                <div key={mem.id} className="aha-memory-card">
-                  <div className="aha-card-header">
-                    <span className="aha-card-date">
-                      <Calendar size={11} /> {mem.date}
-                    </span>
-                    <span className="aha-card-tag">{mem.tag}</span>
-                  </div>
-                  <h4 className="aha-card-title">{mem.title}</h4>
-                  <p className="aha-card-snippet">{mem.snippet}</p>
-                  <div className="aha-card-footer">
-                    <span className="aha-card-place">
-                      <MapPin size={11} /> {mem.place}
-                    </span>
-                    {mem.people.length > 0 && (
-                      <span className="aha-card-people">
-                        <Users size={11} /> {mem.people.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ textAlign: 'center', marginTop: 24 }}>
-              <a href="/ai-memory-search" className="trust-inline-link" style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
-                Learn how AI memory search works →
-              </a>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   )

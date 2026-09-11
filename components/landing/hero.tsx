@@ -2,68 +2,82 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowRight, MapPin, Users, Sparkles, ChevronDown, Smartphone, Monitor } from 'lucide-react'
+import { ArrowRight, MapPin, Users, Sparkles, ChevronDown, Smartphone, Monitor, PenLine, Camera } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 
-interface SampleMemory {
+interface HeroKeepsake {
   id: string
+  photoUrl: string
+  photoAlt: string
   date: string
   time: string
   title: string
   place: string
   person: string
-  category: string
-  thought: string
+  writtenEntry: string
+  hasPhoto: boolean
+  askQuery: string
   reflection: string
 }
 
-const SAMPLE_MEMORIES: SampleMemory[] = [
+const HERO_KEEPSAKES: HeroKeepsake[] = [
   {
-    id: 'coffee-maya',
-    date: 'August 24, 2026',
-    time: '7:15 PM',
-    title: 'Coffee after work with Maya',
-    place: 'Powai, Mumbai',
+    id: 'lisbon-cafe',
+    photoUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=800&q=80',
+    photoAlt: 'Quiet corner café table with ceramic espresso cup in warm morning sunlight',
+    date: 'October 14, 2025',
+    time: '4:15 PM',
+    title: 'Corner window after the rain',
+    place: 'Lisbon',
     person: 'Maya',
-    category: 'Life',
-    thought: 'Caught up over pour-overs at the corner table. Talked about moving into our new studio and how fast the summer went.',
-    reflection: 'You met Maya in Powai on a late August evening to talk about your new studio plans.',
+    writtenEntry:
+      'Caught up over pour-overs at the corner table after the afternoon shower cleared. We sat watching the light bounce off the wet cobblestones, talking about what we want to build next year and how fast the summer went. Writing this down before the feeling fades.',
+    hasPhoto: true,
+    askQuery: 'When did I write about sitting by the corner window in Lisbon?',
+    reflection: 'You wrote about spending three quiet hours with Maya after the rain stopped, talking about plans for the year ahead.',
   },
   {
-    id: 'kyoto-morning',
-    date: 'October 12, 2025',
-    time: '8:40 AM',
-    title: 'Rainy morning walk in Kyoto',
-    place: 'Gion, Kyoto',
-    person: 'Liam',
-    category: 'Travel',
-    thought: 'The streets were empty after the rainfall. Found a small cedar tea house playing quiet jazz on vinyl.',
-    reflection: 'You took an early morning walk with Liam in Kyoto right after the autumn rain.',
+    id: 'lake-house-dock',
+    photoUrl: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80',
+    photoAlt: 'Wooden dock over still lake water surrounded by quiet pines',
+    date: 'July 19, 2025',
+    time: '6:30 PM',
+    title: 'Sunset out on the wooden dock',
+    place: 'The Lake House',
+    person: 'Alex',
+    writtenEntry:
+      'Sat on the cedar dock with Alex until the water turned to glass. Total silence except for the breeze through the pines. We talked about how different everything felt two years ago, and how good it feels to have arrived here.',
+    hasPhoto: true,
+    askQuery: 'What did I write on the dock at the lake house?',
+    reflection: 'You wrote about sitting with Alex until twilight, reflecting on how much had changed over two years.',
   },
 ]
 
 export function LandingHero({ user }: { user?: boolean }) {
   const [activeIdx, setActiveIdx] = useState(0)
-  const current = SAMPLE_MEMORIES[activeIdx]
+  const current = HERO_KEEPSAKES[activeIdx]
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveIdx((prev) => (prev + 1) % SAMPLE_MEMORIES.length)
-    }, 6000)
+      setActiveIdx((prev) => (prev + 1) % HERO_KEEPSAKES.length)
+    }, 8000)
     return () => clearInterval(interval)
   }, [])
 
   return (
     <section className="landing-hero-container">
-      {/* Background ambient warmth */}
+      {/* Background paper warmth */}
       <div className="landing-ambient-glow" aria-hidden="true" />
 
       <div className="landing-hero-header-block">
+        <span className="landing-quiet-eyebrow">A Quiet Keepsake for Your Past</span>
+
         <h1 className="landing-hero-title">
-          Your life, remembered.
+          Write down what mattered today.
         </h1>
+
         <p className="landing-hero-subtitle">
-          Someone who knows your past, and helps you find the parts of your life you lost along the way.
+          Someone who knows your past, and helps you find the parts of your life you lost along the way. Add a photo if there&apos;s one worth keeping.
         </p>
 
         <div className="landing-hero-cta-row">
@@ -71,20 +85,21 @@ export function LandingHero({ user }: { user?: boolean }) {
             href={user ? '/app' : '/login'}
             className="landing-hero-primary-cta"
           >
-            <span>{user ? 'Go to your space' : 'Try Thenvue'}</span>
-            <ArrowRight size={15} />
+            <span>{user ? 'Open your journal' : 'Start writing'}</span>
+            <ArrowRight size={14} />
           </Link>
+
           <a
-            href="#how-it-works"
+            href="#ask-your-life"
             className="landing-hero-secondary-cta"
           >
             <span>See how it works</span>
-            <ChevronDown size={14} />
+            <ChevronDown size={13} />
           </a>
         </div>
 
         {/* Platform Availability Options */}
-        <div className="landing-platforms-row" style={{ justifyContent: 'center', marginTop: 24 }}>
+        <div className="landing-platforms-row">
           <span className="platform-label">Available on:</span>
           <div className="platform-pills">
             <Link href={user ? '/app' : '/login'} className="platform-pill">
@@ -103,52 +118,65 @@ export function LandingHero({ user }: { user?: boolean }) {
         </div>
       </div>
 
-      {/* Hero Visual: One calm, beautiful Thenvue product preview */}
+      {/* Hero Visual: Written Journal Entry First, Supporting Photo Attached */}
       <div className="landing-hero-visual-frame">
-        <div className="landing-product-preview-card">
-          {/* Top minimal header inside the product preview */}
-          <div className="landing-preview-topbar">
-            <div className="preview-topbar-left">
-              <span className="preview-app-name">Thenvue</span>
-              <span className="preview-demo-tag">Sample memory</span>
+        <div className="landing-written-keepsake-card">
+          {/* Header of Written Keepsake */}
+          <div className="written-keepsake-header">
+            <div className="written-keepsake-meta">
+              <span className="written-keepsake-date">{current.date} · {current.time}</span>
+              <span className="written-keepsake-badge">
+                <PenLine size={11} />
+                <span>Written Entry</span>
+              </span>
             </div>
-            <div className="preview-topbar-right">
-              <span className="preview-indicator-dot" />
-              <span className="preview-status-text">Private timeline</span>
+            <div className="written-keepsake-place-pill">
+              <MapPin size={11} />
+              <span>{current.place}</span>
             </div>
           </div>
 
-          {/* Memory Card Body */}
-          <div className="landing-preview-memory" key={current.id}>
-            <div className="preview-memory-meta">
-              <span className="preview-memory-date">{current.date} · {current.time}</span>
-              <span className="preview-memory-tag">{current.category}</span>
+          {/* Main Written Body with optional clipped companion photo */}
+          <div className="written-keepsake-content-layout">
+            <div className="written-keepsake-text-column">
+              <h3 className="written-keepsake-title">{current.title}</h3>
+              <p className="written-keepsake-body">
+                &ldquo;{current.writtenEntry}&rdquo;
+              </p>
+
+              <div className="written-keepsake-footer-tags">
+                <span className="keepsake-tag">
+                  <Users size={11} /> {current.person}
+                </span>
+                <span className="keepsake-tag">Reflection</span>
+              </div>
             </div>
 
-            <h3 className="preview-memory-title">{current.title}</h3>
-            <p className="preview-memory-thought">{current.thought}</p>
-
-            <div className="preview-memory-footer">
-              <span className="preview-pill">
-                <MapPin size={11} />
-                <span>{current.place}</span>
-              </span>
-              <span className="preview-pill">
-                <Users size={11} />
-                <span>{current.person}</span>
-              </span>
-            </div>
+            {/* Optional supporting photo clipped alongside */}
+            {current.hasPhoto && (
+              <div className="written-keepsake-photo-attachment">
+                <div className="supporting-polaroid-frame">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={current.photoUrl}
+                    alt={current.photoAlt}
+                    className="supporting-photo-img"
+                  />
+                  <span className="supporting-photo-label">Attached moment</span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Ask Your Life Transition Overlay / Grounded Pill */}
-          <div className="landing-preview-ask-bar">
-            <div className="preview-ask-query">
-              <CustomBrainIcon size={14} className="preview-brain-icon" />
-              <span className="preview-ask-text">&ldquo;When was I in {current.place.split(',')[0]} with {current.person}?&rdquo;</span>
+          {/* Ask Your Life Grounded Reflection Bar */}
+          <div className="hero-reflection-card">
+            <div className="hero-reflection-query">
+              <CustomBrainIcon size={14} className="hero-brain-icon" />
+              <span className="query-text">&ldquo;{current.askQuery}&rdquo;</span>
             </div>
-            <div className="preview-ask-result">
-              <Sparkles size={12} className="preview-sparkle-icon" />
-              <p className="preview-reflection-text">&ldquo;{current.reflection}&rdquo;</p>
+            <div className="hero-reflection-response">
+              <Sparkles size={12} className="hero-sparkle-icon" />
+              <p className="response-text">&ldquo;{current.reflection}&rdquo;</p>
             </div>
           </div>
         </div>

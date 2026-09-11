@@ -21,6 +21,8 @@ import {
   Calendar,
   Clock,
   Loader2,
+  RefreshCw,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { CustomBrainIcon } from '@/components/icons/custom-brain-icon'
 import type { Memory, MemoryPerspective } from '@/types/memory'
@@ -131,6 +133,17 @@ export function Detail({
   }, [showMenu])
 
   // Fetch full details (participants & perspectives with signed URLs)
+  const handleRefreshSignedUrls = async () => {
+    try {
+      const fullMem = await getMemoryDetailsAction(initialMemory.id)
+      if (fullMem) {
+        setMemory(fullMem)
+      }
+    } catch (err) {
+      console.error('Failed to refresh signed URLs:', err)
+    }
+  }
+
   useEffect(() => {
     let active = true
     getMemoryDetailsAction(initialMemory.id)
@@ -364,6 +377,7 @@ export function Detail({
                 onDelete={(id) => setMediaToDelete(id)}
                 onExpand={(url) => setExpandedImage(url)}
                 canDelete={isOwner}
+                onRefreshMedia={handleRefreshSignedUrls}
               />
             )}
             {photoMedia.length > 1 && (
@@ -375,6 +389,7 @@ export function Detail({
                     onDelete={(id) => setMediaToDelete(id)}
                     onExpand={(url) => setExpandedImage(url)}
                     canDelete={isOwner}
+                    onRefreshMedia={handleRefreshSignedUrls}
                   />
                 ))}
               </div>
@@ -979,13 +994,80 @@ function MediaImage({
   onDelete,
   onExpand,
   canDelete = true,
+  onRefreshMedia,
 }: {
   media: Memory['media'][number]
   className?: string
   onDelete?: (mediaId: string) => void
   onExpand?: (url: string) => void
   canDelete?: boolean
+  onRefreshMedia?: () => Promise<void>
 }) {
+  const [loadError, setLoadError] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const hasAttemptedAutoRefresh = useRef(false)
+
+  const handleImageError = async () => {
+    setLoadError(true)
+    if (!hasAttemptedAutoRefresh.current && onRefreshMedia) {
+      hasAttemptedAutoRefresh.current = true
+      setIsRefreshing(true)
+      try {
+        await onRefreshMedia()
+        setLoadError(false)
+      } catch {
+        // Keep loadError true
+      } finally {
+        setIsRefreshing(false)
+      }
+    }
+  }
+
+  const handleManualRetry = async () => {
+    if (!onRefreshMedia) return
+    setIsRefreshing(true)
+    try {
+      await onRefreshMedia()
+      setLoadError(false)
+    } catch (err) {
+      console.error('Manual media refresh failed:', err)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  if (loadError) {
+    return (
+      <figure className={className ? 'detail-media detail-media-single detail-media-error' : 'detail-media detail-media-error'}>
+        <div className="media-error-card">
+          <ImageIcon size={22} className="media-error-icon" />
+          <p className="media-error-text">Photo preview unavailable</p>
+          {onRefreshMedia && (
+            <button
+              type="button"
+              className="media-reload-btn"
+              onClick={handleManualRetry}
+              disabled={isRefreshing}
+            >
+              <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+              <span>{isRefreshing ? 'Refreshing...' : 'Reload photo'}</span>
+            </button>
+          )}
+        </div>
+        {canDelete && onDelete && (
+          <button
+            type="button"
+            className="detail-media-delete"
+            onClick={() => onDelete(media.id)}
+            aria-label={`Delete ${media.fileName}`}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </figure>
+    )
+  }
+
   return (
     <figure className={className ? 'detail-media detail-media-single' : 'detail-media'}>
       <button
@@ -994,7 +1076,12 @@ function MediaImage({
         onClick={() => onExpand?.(media.url)}
         aria-label="View full image"
       >
-        <img className={className} src={media.url} alt={media.fileName} />
+        <img
+          className={className}
+          src={media.url}
+          alt={media.fileName}
+          onError={handleImageError}
+        />
       </button>
       {canDelete && onDelete && (
         <button

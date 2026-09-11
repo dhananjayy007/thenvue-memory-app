@@ -1,7 +1,11 @@
-import { Bell, HelpCircle, Search } from 'lucide-react'
+'use client'
+
+import { Bell, HelpCircle, Search, Sun, Moon } from 'lucide-react'
 import { ThenvueLogo } from '@/components/icons/thenvue-logo'
 
 export function Topbar({
+  dark,
+  onToggleTheme,
   onSearch,
   onOpenNotifications,
   onOpenTutorial,
@@ -25,13 +29,25 @@ export function Topbar({
       </div>
 
       <div className="top-actions">
+        {onToggleTheme && (
+          <button
+            type="button"
+            className="topbar-theme-toggle"
+            aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            onClick={onToggleTheme}
+          >
+            {dark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        )}
         {onOpenTutorial && (
-          <button aria-label="Tutorial" title="Tutorial & Walkthrough" onClick={onOpenTutorial}>
+          <button type="button" aria-label="Tutorial" title="Tutorial & Walkthrough" onClick={onOpenTutorial}>
             <HelpCircle size={18} />
           </button>
         )}
         {onOpenNotifications && (
           <button
+            type="button"
             className="topbar-notifications-btn"
             aria-label="Notifications"
             onClick={onOpenNotifications}
@@ -41,11 +57,10 @@ export function Topbar({
             {unreadCount > 0 && <span className="topbar-unread-badge">{unreadCount}</span>}
           </button>
         )}
-        <button aria-label="Search" title="Search memories" onClick={onSearch}>
+        <button type="button" aria-label="Search" title="Search memories" onClick={onSearch}>
           <Search size={18} />
         </button>
       </div>
     </header>
   )
 }
-

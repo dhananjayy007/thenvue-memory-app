@@ -21,6 +21,7 @@ import {
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { MobileNav } from '@/components/layout/mobile-nav'
+import { InstallAppBanner } from '@/components/layout/install-app-banner'
 import { Home } from '@/components/views/home'
 import { Timeline } from '@/components/views/timeline'
 import { Memories } from '@/components/views/memories'
@@ -33,11 +34,13 @@ import { RediscoverImportModal } from '@/components/rediscover/rediscover-import
 import { Capture } from '@/components/memory/capture-modal'
 import { Detail } from '@/components/memory/detail-modal'
 import { OnboardingModal } from '@/components/auth/onboarding-modal'
+import { OnboardingImportModal } from '@/components/auth/onboarding-import-modal'
 import { PhotoUploadModal } from '@/components/memory/photo-upload-modal'
 import { InvitePeopleModal } from '@/components/memory/invite-people-modal'
 import { PerspectiveComposerModal } from '@/components/memory/perspective-composer-modal'
 import { NotificationCenter } from '@/components/notifications/notification-center'
 import { useTimelineMemories } from '@/hooks/use-timeline-memories'
+import { applyTheme, getInitialTheme, type Theme } from '@/lib/theme'
 
 export function AppShell({
   displayName,
@@ -86,6 +89,7 @@ export function AppShell({
 
   // Onboarding & Photo Attachment Modals State
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showTutorial, setShowTutorial] = useState(false)
   const [photoUploadMemory, setPhotoUploadMemory] = useState<Memory | null>(null)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
 
@@ -97,16 +101,19 @@ export function AppShell({
 
   // Hydrate & Persist Theme
   useEffect(() => {
-    try {
-      const savedTheme = localStorage.getItem('memory_theme')
-      if (savedTheme === 'light') {
-        setDark(false)
-      } else if (savedTheme === 'dark') {
-        setDark(true)
+    const initial = getInitialTheme()
+    setDark(initial === 'dark')
+    applyTheme(initial)
+
+    const handleThemeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<Theme>
+      if (customEvent.detail) {
+        setDark(customEvent.detail === 'dark')
       }
-    } catch {
-      // Ignore localStorage read errors in restricted contexts
     }
+
+    window.addEventListener('thenvue-theme-change', handleThemeChange)
+    return () => window.removeEventListener('thenvue-theme-change', handleThemeChange)
   }, [])
 
   // Check Onboarding status on load
@@ -123,15 +130,10 @@ export function AppShell({
   }, [])
 
   const toggleTheme = () => {
-    setDark((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem('memory_theme', next ? 'dark' : 'light')
-      } catch {
-        // Ignore localStorage write errors
-      }
-      return next
-    })
+    const nextIsDark = !dark
+    const nextTheme: Theme = nextIsDark ? 'dark' : 'light'
+    setDark(nextIsDark)
+    applyTheme(nextTheme)
   }
 
   const showToast = (message: string) => {
@@ -150,8 +152,7 @@ export function AppShell({
   }
 
   const handleReplayTutorial = async () => {
-    setShowOnboarding(true)
-    resetOnboardingAction().catch(() => {})
+    setShowTutorial(true)
   }
 
   const handleInitiateAddPhoto = (memory: Memory) => {
@@ -414,9 +415,12 @@ export function AppShell({
       />
 
       <main className="main-content">
+        <InstallAppBanner />
         <Topbar
+          dark={dark}
+          onToggleTheme={toggleTheme}
           onSearch={handleSearchClick}
-          onOpenTutorial={() => setShowOnboarding(true)}
+          onOpenTutorial={() => setShowTutorial(true)}
           onOpenNotifications={() => setShowNotifications(true)}
           unreadCount={unreadNotificationsCount}
         />
@@ -429,6 +433,7 @@ export function AppShell({
             onOpen={setDetail}
             onGo={go}
             onAddPhoto={handleInitiateAddPhoto}
+            onStartImport={() => setShowRediscoverImport(true)}
             displayName={displayName}
           />
         )}
@@ -439,6 +444,7 @@ export function AppShell({
             query={query}
             setQuery={setQuery}
             onCapture={() => openCapture('text')}
+            onStartImport={() => setShowRediscoverImport(true)}
             hasMore={hasMore}
             isLoadingMore={isLoadingMore}
             onLoadMore={loadMore}
@@ -451,6 +457,7 @@ export function AppShell({
             query={query}
             setQuery={setQuery}
             onCapture={() => openCapture('text')}
+            onStartImport={() => setShowRediscoverImport(true)}
             focusTrigger={searchFocusTrigger}
           />
         )}
@@ -463,7 +470,18 @@ export function AppShell({
           />
         )}
 
-        {view === 'ask' && <Ask memories={memories} ask={ask} setAsk={setAsk} answer={answer} setAnswer={setAnswer} onOpen={setDetail} />}
+        {view === 'ask' && (
+          <Ask
+            memories={memories}
+            ask={ask}
+            setAsk={setAsk}
+            answer={answer}
+            setAnswer={setAnswer}
+            onOpen={setDetail}
+            onCapture={() => openCapture('text')}
+            onStartImport={() => setShowRediscoverImport(true)}
+          />
+        )}
         {view === 'people' && <People memories={memories} onOpen={setDetail} onCapture={() => openCapture('text')} />}
         {view === 'places' && <Places memories={memories} onOpen={setDetail} onCapture={() => openCapture('text')} />}
         {view === 'you' && (
@@ -547,10 +565,24 @@ export function AppShell({
         onUnreadCountChange={(count) => setUnreadNotificationsCount(count)}
       />
 
-      {/* Onboarding Modal */}
-      <OnboardingModal
+      {/* New-User Past Memories Import Onboarding Modal */}
+      <OnboardingImportModal
         isOpen={showOnboarding}
-        onComplete={handleOnboardingComplete}
+        onImportYes={() => {
+          setShowOnboarding(false)
+          completeOnboardingAction().catch(() => {})
+          setShowRediscoverImport(true)
+        }}
+        onNotNow={() => {
+          setShowOnboarding(false)
+          completeOnboardingAction().catch(() => {})
+        }}
+      />
+
+      {/* Tutorial Walkthrough Modal */}
+      <OnboardingModal
+        isOpen={showTutorial}
+        onComplete={() => setShowTutorial(false)}
       />
 
       {/* Rediscover Past Photo Import Modal */}

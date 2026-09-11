@@ -380,7 +380,7 @@ export function Capture({
           </header>
         ) : (
           <header className="capture-header">
-            <span className="capture-header-title">{mode === 'voice' ? 'Record a voice memory' : 'Capture a memory'}</span>
+            <span className="capture-header-title">{mode === 'voice' ? 'Record a voice note' : 'Write a memory'}</span>
             <button type="button" className="capture-close" onClick={onClose} disabled={busy} aria-label="Close">
               <X size={18} />
             </button>
@@ -496,7 +496,7 @@ export function Capture({
               autoFocus
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="What happened? (Type @ to tag a friend)"
+              placeholder="Write down what mattered today... (Type @ to mention someone)"
             />
             <MentionAutocomplete
               textareaRef={textareaRef}
@@ -541,7 +541,7 @@ export function Capture({
                 <input
                   type="text"
                   className="capture-inline-input"
-                  placeholder="Where did this happen? (e.g. Bandra, Mumbai)"
+                  placeholder="Where did this happen? (e.g. Lisbon, Corner Bookshop)"
                   value={customPlace}
                   onChange={(e) => setCustomPlace(e.target.value)}
                   autoFocus

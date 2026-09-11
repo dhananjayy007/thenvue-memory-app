@@ -1,6 +1,6 @@
 'use client'
 
-import { Camera, ChevronRight, MapPin } from 'lucide-react'
+import { Camera, ChevronRight, MapPin, Sparkles } from 'lucide-react'
 import type { Memory } from '@/types/memory'
 import { isSameCalendarDay, formatDateShort } from '@/lib/format'
 import { renderWithMentions } from '@/lib/mentions'
@@ -37,7 +37,15 @@ export function MemoryRow({
           <span className="row-time">{memory.time}</span>
         </div>
         <span className="row-content">
-          <strong>{renderWithMentions(memory.text)}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <strong>{renderWithMentions(memory.text)}</strong>
+            {memory.isProcessing && (
+              <span className="row-processing-tag" title="AI analyzing title, topics, and mood...">
+                <Sparkles size={10} className="pulse-icon" />
+                <span>Analyzing</span>
+              </span>
+            )}
+          </div>
           <small>
             <MapPin size={12} /> {memory.place} <i /> {memory.topics[0] ?? 'Uncategorized'}
           </small>
